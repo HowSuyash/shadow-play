@@ -82,6 +82,33 @@
         padding: 16px 0;
         font-size: 30px;
       }
+      #keys-help {
+        position: fixed;
+        left: 50%;
+        bottom: 3%;
+        transform: translateX(-50%);
+        z-index: 10;
+        padding: 12px 22px;
+        color: #f6dfb0;
+        background: rgba(30, 14, 6, 0.82);
+        border: 1px solid #8a5a2a;
+        border-radius: 14px;
+        font: 17px Georgia, serif;
+        text-align: center;
+        line-height: 1.6;
+      }
+      #keys-help[hidden] {
+        display: none;
+      }
+      #keys-help b {
+        display: inline-block;
+        min-width: 22px;
+        padding: 0 6px;
+        margin: 0 2px;
+        color: #2b1709;
+        background: #e9cf9c;
+        border-radius: 5px;
+      }
       .status {
         font: italic 18px Georgia, serif;
         color: #e8c48f;
@@ -127,6 +154,11 @@
       <div class="status" id="lobby-status"></div>
     </div>
     <div id="boot-note">Hands only &middot; seated &middot; about 5 minutes</div>
+    <div id="keys-help" hidden>
+      Computer demo &mdash; the real game is played with your hands in a Meta Quest<br />
+      <b>Enter</b> start &nbsp; <b>1</b> dog &nbsp; <b>2</b> bird &nbsp; <b>3</b> rabbit &nbsp; <b>4</b> snake
+      &nbsp; <b>P</b> pause &nbsp; <b>Esc</b> leave &nbsp;&middot;&nbsp; menu: <b>V</b> duel <b>M</b> memory <b>G</b> gallery
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

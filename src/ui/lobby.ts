@@ -87,4 +87,16 @@ export class Lobby {
   setVisible(v: boolean): void {
     this.el.hidden = !v;
   }
+
+  /**
+   * No VR headset in this browser: "Play" starts a keyboard demo instead of
+   * silently failing, and the page says where the real game is played.
+   */
+  setDesktopMode(onPlayHere: () => void): void {
+    const play = document.getElementById('play-solo') as HTMLButtonElement;
+    play.textContent = 'Try it here';
+    play.onclick = onPlayHere;
+    (document.getElementById('play-coop') as HTMLElement).hidden = true;
+    this.setStatus('Open this page in the Meta Quest Browser to play with your hands.');
+  }
 }

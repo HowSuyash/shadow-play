@@ -911,6 +911,19 @@ function setupLobby(world: World, g: Game): void {
   });
   g.onStatus = (text) => lobby.setStatus(text);
   lobby.setVisible(true);
+  // A computer without a headset: offer the keyboard demo instead of a dead button.
+  const keysHelp = document.getElementById('keys-help') as HTMLElement | null;
+  void navigator.xr?.isSessionSupported('immersive-vr').then((vr) => {
+    if (vr) return;
+    lobby.setDesktopMode(() => {
+      sfx.unlock();
+      lobby.setVisible(false);
+      const note = document.getElementById('boot-note');
+      if (note) note.hidden = true;
+      if (keysHelp) keysHelp.hidden = false;
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+  });
   world.visibilityState.subscribe((state) => {
     lobby.setVisible(state === VisibilityState.NonImmersive);
     if (state !== VisibilityState.NonImmersive) sfx.unlock();
