@@ -206,6 +206,28 @@ export class Sfx {
     for (let i = 0; i < 6; i++) this.noise(t + 0.1 + i * 0.09, 0.05, 'bandpass', 3000, 3, 0.07);
   }
 
+  /** Kitten mew: a sad falling glide, or a happy rising chirp. */
+  mew(sad: boolean): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = this.now;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    const [a, b, c] = sad ? [700, 950, 520] : [650, 1100, 1250];
+    o.frequency.setValueAtTime(a, t);
+    o.frequency.linearRampToValueAtTime(b, t + 0.12);
+    o.frequency.linearRampToValueAtTime(c, t + 0.45);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1400;
+    f.Q.value = 1.2;
+    const g = ctx.createGain();
+    this.env(g, t, sad ? 0.12 : 0.15, 0.05, 0.42);
+    o.connect(f).connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.55);
+  }
+
   /** Soft puff when the wrong creature appears and fades. */
   fizzle(): void {
     if (!this.ctx) return;

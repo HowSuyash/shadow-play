@@ -1,7 +1,7 @@
 import { Color, createSystem, Group, Mesh, MeshBasicMaterial, Vector3, VisibilityState, World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
-import { ThiefLevel, type Level } from './game/levels.js';
+import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { Gestures } from './hands/gestures.js';
 import { HandTracker } from './hands/handData.js';
 import { PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
@@ -35,6 +35,7 @@ class Game {
   readonly flash = new Flash();
   readonly hint = new Hint();
   readonly debug = new DebugOverlay();
+  readonly finale = new Finale();
 
   phase: Phase = 'title';
   private readonly levels: Level[];
@@ -72,7 +73,8 @@ class Game {
     this.titleTexts = [new Fader(title, 1.5), new Fader(sub, 1.2), new Fader(how, 1)];
     this.titleTexts.forEach((t) => t.show());
 
-    this.levels = [new ThiefLevel(this.room)];
+    this.levels = [new ThiefLevel(this.room), new ChasmLevel(this.room), new WallLevel(this.room)];
+    this.wall.add(this.finale.root);
     this.levelTitles = this.levels.map((l) => {
       const m = makeText([`${l.numeral} · ${l.title}`], 0.2, { size: 80, letterSpacing: 4 });
       m.position.set(0, STAGE.titleY, STAGE.z);
@@ -97,6 +99,7 @@ class Game {
     else if (inLevel) this.updateLevel(dt, pose, levelReady);
 
     this.level?.update(dt, time);
+    this.finale.update(dt, time);
     this.updateCurtain(dt);
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -130,6 +133,7 @@ class Game {
   }
 
   private startRun(): void {
+    this.finale.hide();
     this.runTime = 0;
     this.hintsUsed = 0;
     this.wrongCreatures = 0;
@@ -214,6 +218,7 @@ class Game {
     this.level?.exit();
     this.level = undefined;
     this.phase = 'end';
+    this.finale.show();
     sfx.fanfare();
     const secs = Math.round(this.runTime);
     const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50);
