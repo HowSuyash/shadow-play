@@ -1,4 +1,4 @@
-import { makeRoomCode, type CoopRole } from '../net/coop.js';
+import { makeRoomCode, ROOM_CODE_LENGTH, type CoopRole } from '../net/coop.js';
 
 export interface LobbyHandlers {
   /** Create the co-op connection as soon as a room is chosen (it connects while the player puts the headset on). */
@@ -38,14 +38,19 @@ export class Lobby {
       this.startCoop('host', code);
       this.setStatus('waiting for your partner… you can enter VR now');
     };
+    $('host-copy').onclick = () => {
+      const link = `${location.origin}${location.pathname}?room=${$('host-code').textContent}`;
+      const done = () => this.setStatus(`invite link copied: ${link}`);
+      navigator.clipboard?.writeText(link).then(done, () => this.setStatus(`share this link: ${link}`)) ?? this.setStatus(`share this link: ${link}`);
+    };
     $('host-enter').onclick = () => h.onEnter();
 
     // Join: an on-screen keypad, since there's no keyboard in a headset.
     const keypad = $('keypad');
     const joinBtn = $('join-enter') as HTMLButtonElement;
     const render = () => {
-      $('join-code').textContent = this.code.padEnd(4, '·');
-      joinBtn.disabled = this.code.length !== 4;
+      $('join-code').textContent = this.code.padEnd(ROOM_CODE_LENGTH, '·');
+      joinBtn.disabled = this.code.length !== ROOM_CODE_LENGTH;
     };
     for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓']) {
       const b = document.createElement('button');
@@ -54,7 +59,7 @@ export class Lobby {
       b.onclick = () => {
         if (k === '⌫') this.code = this.code.slice(0, -1);
         else if (k === '✓') joinBtn.click();
-        else if (this.code.length < 4) this.code += k;
+        else if (this.code.length < ROOM_CODE_LENGTH) this.code += k;
         render();
       };
       keypad.appendChild(b);
@@ -64,13 +69,13 @@ export class Lobby {
       render();
     };
     joinBtn.onclick = () => {
-      if (this.code.length !== 4) return;
+      if (this.code.length !== ROOM_CODE_LENGTH) return;
       this.startCoop('guest', this.code);
       h.onEnter();
     };
 
     const fromLink = new URLSearchParams(location.search).get('room');
-    if (fromLink && /^\d{4}$/.test(fromLink)) {
+    if (fromLink && fromLink.length === ROOM_CODE_LENGTH && /^\d+$/.test(fromLink)) {
       this.code = fromLink;
       show('lobby-join');
       render();
@@ -80,7 +85,20 @@ export class Lobby {
   private startCoop(role: CoopRole, code: string): void {
     if (this.coopChosen) return;
     this.coopChosen = true;
+    this.role = role;
     this.h.onCoop(role, code);
+    this.setPartner(false);
+  }
+
+  private role: CoopRole = 'host';
+
+  /** Player slots: who's in the room (shown once a room is chosen). */
+  setPartner(connected: boolean): void {
+    const slots = document.getElementById('lobby-slots') as HTMLElement;
+    const me = this.role === 'host' ? 'Player 1 · host · you' : 'Player 2 · you';
+    const them = this.role === 'host' ? 'Player 2' : 'Player 1 · host';
+    slots.innerHTML = `<span class="slot on">● ${me}</span><span class="slot${connected ? ' on' : ''}">${connected ? '●' : '○'} ${them}${connected ? ' · connected' : ' · waiting…'}</span>`;
+    slots.hidden = false;
   }
 
   setStatus(text: string): void {

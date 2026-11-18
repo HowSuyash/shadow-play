@@ -34,6 +34,13 @@
         z-index: 10;
         color: #f6dfb0;
         text-align: center;
+        padding: 18px 26px;
+        max-width: calc(100vw - 32px);
+        box-sizing: border-box;
+        background: rgba(14, 7, 3, 0.72);
+        border: 1px solid rgba(255, 190, 120, 0.25);
+        border-radius: 26px;
+        backdrop-filter: blur(3px);
       }
       #lobby[hidden],
       #lobby [hidden] {
@@ -67,8 +74,8 @@
         opacity: 0.4;
       }
       .code {
-        font: 700 64px Georgia, serif;
-        letter-spacing: 0.3em;
+        font: 700 54px Georgia, serif;
+        letter-spacing: 0.22em;
         text-shadow: 0 0 22px #ff9a3c;
         min-height: 76px;
       }
@@ -109,6 +116,22 @@
         background: #e9cf9c;
         border-radius: 5px;
       }
+      .slots {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+        font: 18px Georgia, serif;
+      }
+      .slot {
+        padding: 6px 14px;
+        border: 1px solid #8a5a2a;
+        border-radius: 12px;
+        background: rgba(30, 14, 6, 0.7);
+      }
+      .slot.on {
+        border-color: #ffcf86;
+        box-shadow: 0 0 14px #ff9a3c66;
+      }
       .status {
         font: italic 18px Georgia, serif;
         color: #e8c48f;
@@ -143,7 +166,10 @@
       <div id="lobby-host" hidden>
         <div class="status">Tell your partner this code</div>
         <div class="code" id="host-code"></div>
-        <button class="btn" id="host-enter">Enter VR</button>
+        <div class="row">
+          <button class="btn ghost" id="host-copy">Copy invite link</button>
+          <button class="btn" id="host-enter">Enter VR</button>
+        </div>
       </div>
       <div id="lobby-join" hidden>
         <div class="code" id="join-code"></div>
@@ -152,6 +178,7 @@
           <button class="btn" id="join-enter" disabled>Join &amp; enter VR</button>
         </div>
       </div>
+      <div class="slots" id="lobby-slots" hidden></div>
       <div class="status" id="lobby-status"></div>
     </div>
     <div id="boot-note">Hands only &middot; seated &middot; about 5 minutes</div>

@@ -978,7 +978,10 @@ function setupLobby(world: World, g: Game): void {
       }, 3000);
     },
   });
-  g.onStatus = (text) => lobby.setStatus(text);
+  g.onStatus = (text) => {
+    lobby.setStatus(text);
+    if (g.coop) lobby.setPartner(g.coop.connected);
+  };
   lobby.setVisible(true);
   // A computer without a headset: offer the keyboard demo instead of a dead button.
   void navigator.xr

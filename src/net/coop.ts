@@ -51,9 +51,10 @@ const SEND_HZ = 20;
 /** Packet: [flags, 75 left, 75 right, chargingPose, progress] */
 const PACKET_LEN = 1 + JOINT_COUNT * 3 * 2 + 2;
 
-/** A 4-digit room code that is easy to read out loud. */
+/** A six-character room code (digits: easy to read out and to type on the VR keypad). */
+export const ROOM_CODE_LENGTH = 6;
 export function makeRoomCode(): string {
-  return String(1000 + Math.floor(Math.random() * 9000));
+  return String(100000 + Math.floor(Math.random() * 900000));
 }
 
 export class Coop {
