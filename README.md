@@ -1,152 +1,152 @@
-# Shadow Play
+# SHADOW PLAY
 
-**A hands-only shadow-puppet puzzle game for Meta Quest, in the browser.**
+**Your Hands. Your Shadows. Your World.**
 
-You sit in a dim, candle-lit stone room facing a large plain wall. When you hold your real hands in front of the candle, they cast real shadows on the wall. Make a classic hand-shadow shape and hold it for a second, and the shadow **comes alive**. A silhouette creature peels off the wall and acts in a 2D shadow world to solve a little puzzle.
+A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the browser. Sit in a candle-lit stone room facing a great wall. Your real tracked hands cast real shadows on it. Form a classic hand-shadow shape, hold it for a second, and the shadow **comes alive** as a creature that acts in the shadow world on the wall.
 
-- 100% hand tracking: no controllers anywhere, including start, pause and restart
-- Seated: every interaction is within about 60 cm of you
-- Playable within seconds of loading; a full run takes about 3–6 minutes
-- Runs in the Meta Quest Browser from a hosted HTTPS link
+- **100% hand tracking.** No controller anywhere: start, menus, pause, restart, co-op and duels are all done with your hands.
+- **Seated and comfortable.** Every interaction is within about 60 cm. No locomotion, no camera movement.
+- **Quick to start, short to finish.** It's playable seconds after loading, and the story takes about 5–8 minutes.
+- **Nothing to download.** It runs from an HTTPS link in the Meta Quest Browser.
 
 **Play:** https://howsuyash.github.io/shadow-play/
 
 ---
 
-## Your shadows write the story
+## The four hand shadows
 
-Every chapter can be solved by **two different shadows**, and each one changes what happens:
+Hold the shape in front of the candle until the glowing ring around its shadow fills (1 second). Shapes are scored with forgiving soft rules, so near-misses still count.
+
+| Creature | How to make it | What it can do |
+|---|---|---|
+| 🐕 **Dog** | One hand turned sideways, flat, fingers together pointing forward. Raise the **thumb** (ear), drop the **pinky** (jaw). | barks, chases, scares |
+| 🐦 **Bird** | Both hands, palms to the wall, **thumbs hooked together** (the head), fingers spread like wings. | flies over gaps and walls |
+| 🐇 **Rabbit** | One hand: **index + middle up** (ears), **ring + pinky curled** against the thumb (face). | digs tunnels, leaps |
+| 🐍 **Snake** | One hand: all four fingers **straight and pressed together**, **thumb laid flat along the side** (the mouth). | slips through cracks |
+
+## The story: five chapters
+
+The Shadow Eater has stolen the light of the Shadow Kingdom, and your hands hold the old magic. Each chapter wins back one **fragment of light**, shown along the top of the wall.
 
 | Chapter | The problem | One shadow… | …or another |
 |---|---|---|---|
-| **I · The Thief** | A hooded thief steals the candle | 🐕 **Dog** barks and chases him into the night | 🐇 **Rabbit** charms him; he hands the candle back and becomes a friend (he joins you at the end) |
-| **II · The Chasm** | The lantern hangs across a deep gap | 🐦 **Bird** flies over and carries it home | 🐇 **Rabbit** leaps the chasm and stays to keep the far light burning |
-| **III · The Wall** | A kitten is trapped behind a brick wall | 🐇 **Rabbit** digs a tunnel and leads it out | 🐦 **Bird** perches on the wall and coaxes the kitten over |
+| **I · The First Light** (tutorial) | The lantern hangs across a chasm | 🐦 Bird carries it home | 🐇 Rabbit leaps the gap and keeps the light burning over there |
+| **II · The Lost Treasure** | A thief steals the candle | 🐕 Dog chases him into the night | 🐇 Rabbit befriends him; he returns the candle and joins you at the end |
+| **III · The Underground Secret** | A kitten is trapped behind a wall | 🐇 Rabbit digs a tunnel | 🐦 Bird coaxes the kitten up and over |
+| **IV · The Forbidden Passage** | The castle gate is sealed | 🐍 Snake slips through a crack, strikes the lever, and the portcullis rises | — |
+| **V · The Shadow Eater** | Four seals guard the caged light | 🐕 distracts · 🐦 reaches the platform · 🐇 digs to the hidden switch · 🐍 breaks the last seal | in co-op, two different creatures break two seals at once |
 
-That makes 8 possible tales. At the end, everyone you met gathers in the candlelight and the wall tells **your** story, one line per chapter, with your time and score.
+**Your shadows write the story.** The branches lead to different outcomes and a different cast at the finale, and the ending recaps *your* tale, one line per chapter, with your time and score. If you're stuck, shadow pictures of shapes that would work appear on the wall (after 4 s in the tutorial, 8 s in chapters II–IV, 2.5 s in the boss fight). A creature that doesn't fit the scene looks around, puzzled, and fades away.
 
-If you haven't solved a chapter after 8 seconds, shadow pictures of the hand shapes that would work appear on the wall, alternating between the options. The third creature doesn't fit the scene: it looks around, puzzled, and fades away.
+## Modes
 
-## Play together (online co-op)
+The main menu floats about 36 cm in front of you as big round buttons. **Pinch** (thumb tip to index tip) on one to choose it, or just hold an open palm toward the wall to begin the story.
 
-1. On the start page, choose **Play together**, then **Host a room**. You get a 4-digit code.
-2. Your partner, on their own Quest, chooses **Play together → Join a room**, types the code on the big number pad, and enters VR. (A link with `?room=1234` fills in the code.)
-3. You both sit in front of the same wall, and your partner's hand shadow appears beside yours.
+- **Story:** the five chapters above.
+- **Shadow Duel (Gesture Challenge):** a creature appears, and the first to form its shadow wins the round; best of five. Solo, you race the clock. With a partner, you race each other, with a scoreboard, a winner screen, rematch, and the match history for this session.
+- **Creature Gallery:** all four creatures alive on the wall (still-locked ones are dimmed), what each can do and how to make it, chapter stars (★★★ = no hint and under 40 s), your best story time, duel record and 8 achievements. Saved on the device.
+- **Play together (online co-op):** see below.
 
-**Shadow duet:** in co-op a creature only comes alive when **both** of you hold a hand shape at the same time. The ring fills only while you're both holding. If you both make the **same** creature, you summon a **giant** duet creature and earn a bonus. Either player can pause, and the pause applies to both.
-
-There's no game server. The two headsets find each other through public Nostr relays (used only to swap connection details) and then talk directly over a WebRTC data channel, via [Trystero](https://github.com/dmotz/trystero). The host's game makes the decisions and broadcasts them, so both players always see the same story. If your partner leaves, you keep playing solo.
-
-## How to play
-
-### The three hand shadows
-
-Hold the shape steady in front of the candle until the glowing ring around its shadow fills (1 second). The poses are deliberately forgiving.
-
-| Creature | How to make it |
-|---|---|
-| 🐕 **Dog** | One hand turned sideways, flat, fingers together pointing forward. Raise your **thumb** (the ear) and drop your **pinky** down (the open jaw). |
-| 🐦 **Bird** | Both hands, palms toward you, **thumbs hooked together** in the middle (the head), fingers spread out like wings. |
-| 🐇 **Rabbit** | One hand: **index and middle fingers up** (the ears); curl your **ring and pinky** down against your thumb (the face). |
-
-### Controls (hands only)
+### Hands-only controls
 
 | Action | Gesture |
 |---|---|
-| Start / play again | Hold an **open palm** toward the wall for 1 s |
-| Summon a creature | Hold its hand shape for 1 s (in co-op: both players at once) |
+| Choose a menu button | **Pinch** on it |
+| Start the story / play again | Hold an **open palm** toward the wall for 1 s |
+| Summon a creature | Hold its shape for 1 s |
 | Pause | Turn **both palms face-up** for 1 s |
-| Resume / Restart | **Pinch** (thumb tip to index tip) on the big round button floating in front of you |
+| Pause menu | Pinch **Resume · Restart** (this chapter) **· Recenter · Leave** |
 
 Opening the Quest system menu also pauses the game.
 
-## Running it
+## Play together (online co-op)
+
+1. On the start page, tap **Play together → Host a room** to get a 4-digit code (a `?room=1234` link fills it in for your partner).
+2. Your partner taps **Play together → Join a room** on their own Quest and types the code on the big keypad.
+3. Both of you face the same wall. Your partner appears as a pair of glowing hands in their player colour (host gold, guest violet) with a name tag beside you, and **their hand shadow falls on your wall**.
+
+**Shadow duet:** in co-op, a creature only comes alive when **both** of you hold a shape at the same time; the ring fills only while you're both holding. Make the **same** creature together and you summon a **giant** one for a bonus. In the boss fight, two **different** creatures break two seals at once. Shadow Duel becomes a head-to-head race. Either player can pause, and it pauses for both. If your partner leaves, you carry on solo.
+
+**How it works:** there is no game server. The two browsers find each other through public Nostr relays, which are used only to swap WebRTC connection offers, and then talk directly over a peer-to-peer data channel ([Trystero](https://github.com/dmotz/trystero)). The **host's game is authoritative**: it decides every summon, chapter change and pause, and broadcasts them. A guest can only *request* actions. In duels, the host validates every claimed hit (right round, right creature, round still open) before awarding a point.
+
+## Running it locally
+
+Requirements: Node.js 20.19+ (22 or 24 recommended).
 
 ```bash
 npm install
-npm run dev        # https://localhost:8081 (HTTPS only; accept the local certificate)
+npm run dev        # https://localhost:8081  (HTTPS only; accept the local certificate)
+npm test           # 38 automated tests
+npm run build      # static site in dist/
 ```
 
-The dev server comes with the IWSDK emulator (IWER), so you can play in a desktop browser. To try it on a Quest, open the network URL that `npx @iwsdk/cli dev status` prints while the headset is on the same Wi-Fi.
+The dev server includes the IWSDK emulator (IWER), so you can play in a desktop browser:
+1. Click **Enter XR**.
+2. Switch the emulator to **hand** input.
+3. Shape and move the hands in the emulator's Hand panels.
 
-**Desktop debug keys** (development aids only; never needed on a headset):
+To try it on a Quest, open the network URL that `npx @iwsdk/cli dev status` prints while the headset is on the same Wi-Fi.
+
+**Desktop debug keys** (development only; never needed in a headset):
 
 | Key | Action |
 |---|---|
-| `Enter` | Start / play again |
-| `1` `2` `3` | Force Dog / Bird / Rabbit |
-| `P` | Pause / resume (`R` restarts while paused) |
-| `D` or `` ` `` | Debug overlay: live per-finger curl, palm normals, every pose and gesture confidence |
+| `Enter` | Start the story / rematch |
+| `G` / `V` | Open the Gallery / a Duel from the menu |
+| `1` `2` `3` `4` | Force Dog / Bird / Rabbit / Snake (summon, or duel answer) |
+| `P` | Pause / resume (`R` restarts the chapter, `Esc` leaves) |
+| `D` or `` ` `` | Debug overlay: live per-finger curl, palm normals, every pose and gesture confidence, the hold timer |
 | `L` | Log the overlay to the console (readable during an XR session) |
 
-**Build and deploy:** `npm run build` outputs a static site to `dist/` with relative asset paths. Every push to `main` builds and deploys to GitHub Pages ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)); `vercel.json` makes the same build deploy on Vercel as a backup.
+Simulated creatures are always labelled as debug input; they are never presented as hand tracking.
 
-## Tech stack
+**Configuration:** none is required, and there are no secrets. See [.env.example](.env.example) for the optional relay list.
 
-- **[Meta Immersive Web SDK (IWSDK)](https://iwsdk.dev)**: World, ECS system loop, XR session and input, emulator
-- **Three.js** (re-exported by IWSDK) for rendering
-- **WebXR Hand Input API** for the 25-joint hand skeleton
-- **Web Audio API**: every sound is synthesized at runtime
-- **Trystero (WebRTC)** for serverless peer-to-peer co-op
-- **TypeScript + Vite**
+## Deployment
 
-There are no external assets at all. The stone textures, silhouettes, glows and text are generated with canvas and geometry at startup, and all audio is synthesized, so there is nothing to download, nothing licensed, and nothing that can fail to load.
+Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub Pages** ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)). [vercel.json](vercel.json) makes the same static build deploy on **Vercel** as a backup. The build uses relative asset paths, so it works from any sub-path.
 
 ## How the hand interaction works
 
-### 1. Reading the hands: [`src/hands/handData.ts`](src/hands/handData.ts)
-Each frame, all 25 joints of both hands are read straight from WebXR (`XRFrame.fillPoses` / `fillJointRadii`, falling back to `getJointPose`). They are converted into the room's local space and **smoothed with a 4-frame moving average**, which removes tracking jitter without adding noticeable lag.
+1. **Reading the hands** ([src/hands/handData.ts](src/hands/handData.ts)): all 25 joints of both hands come straight from the WebXR Hand Input API (`XRFrame.fillPoses` / `fillJointRadii`, falling back to `getJointPose`). They're converted to room space and **smoothed with a 4-frame moving average**.
+2. **Real shadows** ([src/hands/shadows.ts](src/hands/shadows.ts)): the candle is the only shadow-casting light (a `SpotLight` with a soft 2048² map, focused on the region where hands are). Each hand has an invisible stand-in made of instanced capsules for every bone plus "webbing" for the palm, drawn with `colorWrite: false`. It only exists in the shadow map, so the shadow on the wall is a true real-time shadow of your tracked hand. That costs two draw calls per player.
+3. **Pose detection** ([src/hands/poseDetector.ts](src/hands/poseDetector.ts)): per hand, it computes **finger curl** (the angle between the metacarpal→proximal and proximal→tip vectors), finger directions, the palm normal and the thumb's position; for the bird, the two-hand thumb and wrist distances. Each creature is an entry in a small **registry** (`POSE_DEFS`): soft linear ramps between "good" and "bad" values, combined with a geometric mean, give a 0–1 confidence. Thresholds live in `POSE_CONFIG`.
+4. **Hold-to-trigger with hysteresis:** a pose must stay above 0.6 for 1.0 s. The timer drains at double speed rather than resetting, so tracking blips are forgiven. Only the most confident pose may charge, the pose already charging gets a stickiness bonus so it doesn't flicker to a neighbour, and a fired pose must be released before it can fire again.
+5. **UI gestures** ([src/hands/gestures.ts](src/hands/gestures.ts)):
+   - **Pinch:** thumb tip to index tip under 2 cm, released past 3.5 cm.
+   - **Open palm:** fingers extended and the palm normal facing the wall.
+   - **Palms up:** both palm normals pointing up, with the hands apart so it can't be confused with the bird.
+6. **Co-op hands** ([src/net/coop.ts](src/net/coop.ts)): each player streams both hands, plus the shape they're holding and their hold progress, 20 times a second in one small `Float32Array`. The receiver eases toward the latest packet at full frame rate. The partner's skeleton drives a second shadow rig and the glowing-hands avatar.
+7. **The transformation** ([src/effects/particles.ts](src/effects/particles.ts)): sparks gather into the ring while you hold a shape. Then a flash, a gold-and-purple burst and a chime, and the creature grows out of your shadow and drops into the scene. The whole particle system is one pooled additive `Points` draw call, which also carries the dust drifting through the candlelight.
 
-### 2. Real shadows: [`src/hands/shadows.ts`](src/hands/shadows.ts)
-The candle is a single `SpotLight` with a soft 2048² shadow map, placed at lap height so it shines past your hands onto the wall (about 3–4× magnification). An invisible stand-in for each hand (instanced capsules for every finger bone, plus extra "webbing" segments that fill the palm) is drawn with `colorWrite: false`. You never see it, but it renders into the shadow map, so the shadow on the wall is a true real-time shadow of your tracked hand. Both hands cost two instanced draw calls in the shadow pass.
+## Art, audio and performance
 
-### 3. Pose detection: [`src/hands/poseDetector.ts`](src/hands/poseDetector.ts)
-Per hand, every frame:
-- **Finger curl** (0–1): the angle between the metacarpal→proximal and proximal→tip vectors
-- **Finger direction**: unit vector from proximal joint to tip, used for "fingers together", "thumb raised" and "pinky dropped"
-- **Palm normal**: cross product across the knuckle row, mirrored for the left hand
-- **Two-hand features** for the bird: the closest distance between any thumb joints of the two hands, and the wrist distance
-
-Each pose is a set of **soft rules**. Every rule is a linear ramp between a "good" and a "bad" value, rather than a hard threshold, and the rules are combined with a geometric mean. One clearly broken rule sinks the pose, but several near-misses still pass. That is what makes the shapes forgiving.
-
-A pose must stay above **0.6 confidence for 1.0 s** to fire. The hold timer drains at twice its fill rate when the pose drops below the threshold, so a brief tracking glitch doesn't reset your progress. Only the single most confident pose may charge at a time, and a fired pose must be released before it can fire again.
-
-### 4. UI gestures: [`src/hands/gestures.ts`](src/hands/gestures.ts)
-- **Pinch:** thumb tip to index tip under 2 cm, released past 3.5 cm (hysteresis prevents flicker). Fires once, on the frame the pinch closes.
-- **Open palm:** fingers extended and the palm normal facing the wall
-- **Palms up:** both palm normals pointing up, with the hands held apart so the gesture can never be confused with the bird
-
-### 5. Co-op hands: [`src/net/coop.ts`](src/net/coop.ts)
-Each player streams both hands (25 joints each, plus their current pose and hold progress) 20 times a second as one small `Float32Array`. On the other side, the partner's joints are eased toward the latest packet every render frame, so their shadow moves smoothly at full frame rate. The partner's skeleton drives a second invisible shadow rig, offset to the side, so both pairs of hands cast real shadows from the same candle.
-
-### 6. Feedback
-While a pose is building, a shader-drawn ring fills around the point where your hand's shadow hits the wall (projected from the candle position), and a rising chime follows the hold progress. On success there is a flash of light and an arpeggio, and the creature grows out of your shadow.
+- **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
+- **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.
+- **Performance:** it targets 72 fps on Quest. There is one shadow light and no post-processing. Silhouettes are unlit flat geometry, and the hand rigs, partner avatar and particles are single instanced/pooled draw calls. The per-frame path doesn't allocate.
 
 ## Code map
 
 ```
 src/
-  main.ts            boot, ECS system, game state machine (TITLE → LEVEL I–III → END, PAUSE overlay)
-  scene/room.ts      procedural stone room, flickering candle, the one shadow-casting light
-  scene/layout.ts    seated-player layout constants (wall, candle, stage, menu)
-  hands/handData.ts  raw WebXR joints → smoothed room-space hand skeletons
-  hands/shadows.ts   invisible shadow-casting hand rig
-  hands/poseDetector.ts  features, DOG / BIRD / RABBIT rules, hold timers
-  hands/gestures.ts  pinch, open palm, palms up
-  game/shapes.ts     2D silhouette toolkit + coroutine cutscene scripting
-  game/creatures.ts  dog, bird, rabbit, thief, kitten (+ animations), candle and lantern props
-  game/levels.ts     level base class, the three chapters (two branches each), the finale
-  net/coop.ts        serverless WebRTC co-op: hand streaming, host-authoritative events
-  ui/lobby.ts        2D start page: play solo, host or join a room (pinch-friendly keypad)
-  ui/wallUI.ts       wall text, hold ring, flash, hint pictograms, pinch pause menu
-  ui/debugOverlay.ts desktop tuning overlay
-  audio/sfx.ts       synthesized chimes, bark, wing flaps, digging, mews, ambience
+  main.ts                 boot + game state machine (menu, story, gallery, duel, pause, co-op plumbing)
+  scene/room.ts, layout.ts   candle-lit room, the shadow light, seated layout
+  hands/handData.ts       WebXR joints → smoothed room-space skeletons
+  hands/shadows.ts        invisible shadow-casting hand rig
+  hands/poseDetector.ts   features, creature registry (dog, bird, rabbit, snake), hold timers
+  hands/gestures.ts       pinch, open palm, palms up
+  game/levels.ts          level base class + chapters I–III, finale
+  game/finalLevels.ts     chapters IV (snake) and V (the Shadow Eater)
+  game/creatures.ts       silhouettes + animation (dog, bird, rabbit, snake, thief, kitten), props
+  game/backdrops.ts       distant scenery cloths
+  game/progress.ts        stars, unlocks, best times, achievements (localStorage)
+  game/shapes.ts          2D silhouette toolkit + coroutine cutscene scripting
+  modes/duel.ts           Shadow Duel (Gesture Challenge), host-validated
+  net/coop.ts             serverless WebRTC co-op
+  effects/particles.ts, glowHands.ts   sparks + dust, partner avatar
+  ui/wallUI.ts            wall text, hold ring, hints, fragments bar, pinch menus
+  ui/gallery.ts, lobby.ts, debugOverlay.ts
+tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, progress
 ```
 
-## Performance notes
-
-Shadow Play targets 72 fps on Quest:
-- one shadow-casting light and no post-processing
-- silhouettes are flat unlit geometry, and the hand rig is two instanced meshes
-- the per-frame update path does no allocation
-- "vignette" and warmth come from the spotlight's penumbra and colour, not a screen effect
+See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for what's done, what's not, and test results.

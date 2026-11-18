@@ -33,13 +33,19 @@ const APP_ID = 'shadow-play-quest-coop-v1';
  * Pinned to large, well-run general relays that answered when tested;
  * the library default picks randomly from a list with many dead hosts.
  */
-const RELAYS = [
+const DEFAULT_RELAYS = [
   'wss://nos.lol',
   'wss://nostr.mom',
   'wss://relay.primal.net',
   'wss://relay.snort.social',
   'wss://relay.nostr.net',
 ];
+/** Override with a comma-separated list in VITE_SHADOW_RELAYS (see .env.example). */
+const RELAYS: string[] =
+  (import.meta.env.VITE_SHADOW_RELAYS as string | undefined)
+    ?.split(',')
+    .map((u) => u.trim())
+    .filter(Boolean) ?? DEFAULT_RELAYS;
 /** Hand packets per second. Remote hands are interpolated in between. */
 const SEND_HZ = 20;
 /** Packet: [flags, 75 left, 75 right, chargingPose, progress] */
