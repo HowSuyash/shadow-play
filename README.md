@@ -13,16 +13,29 @@ You sit in a dim, candle-lit stone room facing a large plain wall. When you hold
 
 ---
 
-## The story
+## Your shadows write the story
 
-| Chapter | What's happening | Shadow that solves it |
-|---|---|---|
-| **I · The Thief** | A hooded thief sneaks in and steals the candle | **Dog**: runs at him and barks, and the thief flees and drops the candle |
-| **II · The Chasm** | The lantern hangs across a deep gap | **Bird**: flies over, picks up the lantern and hangs it on your side |
-| **III · The Wall** | A kitten is trapped behind a brick wall | **Rabbit**: digs under the wall and leads the kitten out through the tunnel |
-| **The End** | Everyone gathers in the candlelight | Your time and score are shown |
+Every chapter can be solved by **two different shadows**, and each one changes what happens:
 
-If you haven't solved a chapter after 8 seconds, a shadow picture of the hand shape you need appears on the wall. If you summon the wrong creature, it looks around, puzzled, and fades away, and the right hint appears.
+| Chapter | The problem | One shadow… | …or another |
+|---|---|---|---|
+| **I · The Thief** | A hooded thief steals the candle | 🐕 **Dog** barks and chases him into the night | 🐇 **Rabbit** charms him; he hands the candle back and becomes a friend (he joins you at the end) |
+| **II · The Chasm** | The lantern hangs across a deep gap | 🐦 **Bird** flies over and carries it home | 🐇 **Rabbit** leaps the chasm and stays to keep the far light burning |
+| **III · The Wall** | A kitten is trapped behind a brick wall | 🐇 **Rabbit** digs a tunnel and leads it out | 🐦 **Bird** perches on the wall and coaxes the kitten over |
+
+That makes 8 possible tales. At the end, everyone you met gathers in the candlelight and the wall tells **your** story, one line per chapter, with your time and score.
+
+If you haven't solved a chapter after 8 seconds, shadow pictures of the hand shapes that would work appear on the wall, alternating between the options. The third creature doesn't fit the scene: it looks around, puzzled, and fades away.
+
+## Play together (online co-op)
+
+1. On the start page, choose **Play together**, then **Host a room**. You get a 4-digit code.
+2. Your partner, on their own Quest, chooses **Play together → Join a room**, types the code on the big number pad, and enters VR. (A link with `?room=1234` fills in the code.)
+3. You both sit in front of the same wall, and your partner's hand shadow appears beside yours.
+
+**Shadow duet:** in co-op a creature only comes alive when **both** of you hold a hand shape at the same time. The ring fills only while you're both holding. If you both make the **same** creature, you summon a **giant** duet creature and earn a bonus. Either player can pause, and the pause applies to both.
+
+There's no game server. The two headsets find each other through public Nostr relays (used only to swap connection details) and then talk directly over a WebRTC data channel, via [Trystero](https://github.com/dmotz/trystero). The host's game makes the decisions and broadcasts them, so both players always see the same story. If your partner leaves, you keep playing solo.
 
 ## How to play
 
@@ -41,7 +54,7 @@ Hold the shape steady in front of the candle until the glowing ring around its s
 | Action | Gesture |
 |---|---|
 | Start / play again | Hold an **open palm** toward the wall for 1 s |
-| Summon a creature | Hold its hand shape for 1 s |
+| Summon a creature | Hold its hand shape for 1 s (in co-op: both players at once) |
 | Pause | Turn **both palms face-up** for 1 s |
 | Resume / Restart | **Pinch** (thumb tip to index tip) on the big round button floating in front of you |
 
@@ -74,6 +87,7 @@ The dev server comes with the IWSDK emulator (IWER), so you can play in a deskto
 - **Three.js** (re-exported by IWSDK) for rendering
 - **WebXR Hand Input API** for the 25-joint hand skeleton
 - **Web Audio API**: every sound is synthesized at runtime
+- **Trystero (WebRTC)** for serverless peer-to-peer co-op
 - **TypeScript + Vite**
 
 There are no external assets at all. The stone textures, silhouettes, glows and text are generated with canvas and geometry at startup, and all audio is synthesized, so there is nothing to download, nothing licensed, and nothing that can fail to load.
@@ -102,7 +116,10 @@ A pose must stay above **0.6 confidence for 1.0 s** to fire. The hold timer drai
 - **Open palm:** fingers extended and the palm normal facing the wall
 - **Palms up:** both palm normals pointing up, with the hands held apart so the gesture can never be confused with the bird
 
-### 5. Feedback
+### 5. Co-op hands: [`src/net/coop.ts`](src/net/coop.ts)
+Each player streams both hands (25 joints each, plus their current pose and hold progress) 20 times a second as one small `Float32Array`. On the other side, the partner's joints are eased toward the latest packet every render frame, so their shadow moves smoothly at full frame rate. The partner's skeleton drives a second invisible shadow rig, offset to the side, so both pairs of hands cast real shadows from the same candle.
+
+### 6. Feedback
 While a pose is building, a shader-drawn ring fills around the point where your hand's shadow hits the wall (projected from the candle position), and a rising chime follows the hold progress. On success there is a flash of light and an arpeggio, and the creature grows out of your shadow.
 
 ## Code map
@@ -118,7 +135,9 @@ src/
   hands/gestures.ts  pinch, open palm, palms up
   game/shapes.ts     2D silhouette toolkit + coroutine cutscene scripting
   game/creatures.ts  dog, bird, rabbit, thief, kitten (+ animations), candle and lantern props
-  game/levels.ts     level base class, the three chapters, the finale
+  game/levels.ts     level base class, the three chapters (two branches each), the finale
+  net/coop.ts        serverless WebRTC co-op: hand streaming, host-authoritative events
+  ui/lobby.ts        2D start page: play solo, host or join a room (pinch-friendly keypad)
   ui/wallUI.ts       wall text, hold ring, flash, hint pictograms, pinch pause menu
   ui/debugOverlay.ts desktop tuning overlay
   audio/sfx.ts       synthesized chimes, bark, wing flaps, digging, mews, ambience

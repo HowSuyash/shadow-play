@@ -22,24 +22,70 @@
         position: fixed;
         inset: 0;
       }
-      #enter-vr {
+      #lobby {
         position: fixed;
         left: 50%;
-        bottom: 9%;
+        bottom: 8%;
         transform: translateX(-50%);
-        padding: 22px 48px;
-        font: 600 28px Georgia, serif;
-        letter-spacing: 0.08em;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        z-index: 10;
+        color: #f6dfb0;
+        text-align: center;
+      }
+      #lobby[hidden],
+      #lobby [hidden] {
+        display: none !important;
+      }
+      .row {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        min-width: 150px;
+        padding: 18px 40px;
+        font: 600 26px Georgia, serif;
+        letter-spacing: 0.06em;
         color: #2b1709;
         background: radial-gradient(circle at 50% 40%, #ffe2a8, #e8a95a);
         border: 2px solid #ffcf86;
         border-radius: 48px;
-        box-shadow: 0 0 40px #ff9a3c88;
+        box-shadow: 0 0 34px #ff9a3c77;
         cursor: pointer;
-        z-index: 10;
       }
-      #enter-vr[hidden] {
-        display: none;
+      .btn.ghost {
+        color: #f6dfb0;
+        background: rgba(40, 20, 8, 0.75);
+        border-color: #a8774a;
+        box-shadow: none;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+      }
+      .code {
+        font: 700 64px Georgia, serif;
+        letter-spacing: 0.3em;
+        text-shadow: 0 0 22px #ff9a3c;
+        min-height: 76px;
+      }
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 84px);
+        gap: 10px;
+      }
+      .keypad .btn {
+        min-width: 0;
+        padding: 16px 0;
+        font-size: 30px;
+      }
+      .status {
+        font: italic 18px Georgia, serif;
+        color: #e8c48f;
+        min-height: 22px;
       }
       #boot-note {
         position: fixed;
@@ -56,7 +102,30 @@
   </head>
   <body>
     <div id="scene-container"></div>
-    <button id="enter-vr" hidden>Enter Shadow Play</button>
+    <div id="lobby" hidden>
+      <div id="lobby-main" class="row">
+        <button class="btn" id="play-solo">Play</button>
+        <button class="btn ghost" id="play-coop">Play together</button>
+      </div>
+      <div id="lobby-coop" class="row" hidden>
+        <button class="btn" id="coop-host">Host a room</button>
+        <button class="btn" id="coop-join">Join a room</button>
+        <button class="btn ghost" id="coop-back">Back</button>
+      </div>
+      <div id="lobby-host" hidden>
+        <div class="status">Tell your partner this code</div>
+        <div class="code" id="host-code"></div>
+        <button class="btn" id="host-enter">Enter VR</button>
+      </div>
+      <div id="lobby-join" hidden>
+        <div class="code" id="join-code"></div>
+        <div class="keypad" id="keypad"></div>
+        <div class="row" style="margin-top: 12px">
+          <button class="btn" id="join-enter" disabled>Join &amp; enter VR</button>
+        </div>
+      </div>
+      <div class="status" id="lobby-status"></div>
+    </div>
     <div id="boot-note">Hands only &middot; seated &middot; about 5 minutes</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

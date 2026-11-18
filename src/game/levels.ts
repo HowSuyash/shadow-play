@@ -50,6 +50,8 @@ export abstract class Level {
   solved = false;
   /** Which solution the player chose, once summoned. */
   outcome: PoseId | null = null;
+  /** Co-op: both players made the same shape, so the creature is a giant. */
+  protected duet = false;
 
   /** One line for the ending's "your story" recap. */
   abstract storyLine(): string;
@@ -78,7 +80,8 @@ export abstract class Level {
   }
 
   /** @returns true if this shadow solves the chapter. */
-  summon(pose: PoseId, spawn: Vector3): boolean {
+  summon(pose: PoseId, spawn: Vector3, duet = false): boolean {
+    this.duet = duet;
     const solves = this.solutions.includes(pose);
     if (solves) this.outcome = pose;
     this.script.start(solves ? this.solve(pose, spawn) : this.wrong(pose, spawn));
@@ -111,6 +114,7 @@ export abstract class Level {
   /** The creature peels off the hand's shadow, then (unless it flies) drops to the ground. */
   protected *emerge(c: Silhouette, spawn: Vector3, land = true): Script {
     c.root.visible = true;
+    c.boost = this.duet ? 1.4 : 1;
     c.fade(1, true);
     c.root.position.set(land ? this.landX(spawn.x) : spawn.x, spawn.y - 0.12, 0.003);
     c.placed();

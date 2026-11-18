@@ -3,12 +3,14 @@ import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { Gestures } from './hands/gestures.js';
-import { HandTracker } from './hands/handData.js';
-import { PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
+import { HandData, HandTracker } from './hands/handData.js';
+import { POSE_THRESHOLD, POSES, PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
 import { HandShadowCasters } from './hands/shadows.js';
+import { Coop, type CoopEvent, type CoopRole } from './net/coop.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
+import { Lobby } from './ui/lobby.js';
 import { Fader, Flash, Hint, HoldRing, makeText, PauseMenu, projectToWall } from './ui/wallUI.js';
 
 type Phase = 'title' | 'level' | 'end';
@@ -21,6 +23,10 @@ const HINT_CYCLE = 4;
 const SOLVED_LINGER = 1.6;
 /** Half-length of the dim → swap → brighten curtain between scenes. */
 const CURTAIN = 0.8;
+/** Partner's shadow sits this far to the side of yours (room metres at the hands). */
+const PARTNER_OFFSET = 0.2;
+/** Score bonus for each giant duet creature. */
+const DUET_BONUS = 250;
 
 /**
  * Game state machine: TITLE → LEVEL 1..3 → END. Owns every per-frame
@@ -39,6 +45,14 @@ class Game {
   readonly debug = new DebugOverlay();
   readonly finale = new Finale();
   readonly menu = new PauseMenu();
+  /** Co-op partner's hands, streamed over the network, casting their own shadows. */
+  readonly partnerLeft = new HandData('left');
+  readonly partnerRight = new HandData('right');
+  readonly partnerCasters = new HandShadowCasters();
+  coop: Coop | undefined;
+  /** Mirrors co-op status to the 2D lobby page. */
+  onStatus: ((text: string) => void) | undefined;
+  private statusText: Fader | undefined;
 
   phase: Phase = 'title';
   paused = false;
@@ -62,6 +76,7 @@ class Game {
   private runTime = 0;
   private hintsUsed = 0;
   private wrongCreatures = 0;
+  private duets = 0;
 
   private readonly titleTexts: Fader[];
   private readonly levelTitles: Fader[];
@@ -70,7 +85,7 @@ class Game {
   private readonly wallPoint = new Vector3();
 
   constructor(private readonly world: World) {
-    this.room.root.add(this.casters.root, this.wall, this.menu.root);
+    this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
     const title = makeText(['SHADOW PLAY'], 0.34, { size: 120, letterSpacing: 18, weight: '700' });
@@ -105,7 +120,16 @@ class Game {
     const levelReady = inLevel && !this.paused && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
     const canPause = inLevel && !this.paused && this.curtainT < 0;
     const g = this.gestures.update(dt, this.phase !== 'level' && this.curtainT < 0, canPause);
-    const pose = this.poses.update(dt, levelReady);
+    // Co-op "shadow duet": the host's summon only charges while the partner holds a shape too.
+    // (If the partner isn't tracking hands yet, e.g. still on the 2D page, play on solo.)
+    const partnerInVR = this.partnerLeft.tracked || this.partnerRight.tracked;
+    const partnerHolding = !this.duetMode || !partnerInVR || this.coop!.partnerCharging !== null;
+    const pose = this.poses.update(dt, levelReady && (this.isGuest || partnerHolding));
+
+    if (this.coop) {
+      this.coop.update(dt, this.hands.left, this.hands.right, this.localCharging(), pose.progress);
+      this.partnerCasters.update([this.partnerLeft, this.partnerRight]);
+    }
 
     if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
     else if (inLevel && this.paused) this.updatePaused(dt);
@@ -137,14 +161,104 @@ class Game {
     projectToWall(this.gestures.openPalmAnchor, this.room.lightPos, this.wallPoint);
     this.ring.set(p, this.wallPoint);
     sfx.setChime(p);
-    if (startFired || this.debugKey('Enter')) {
-      sfx.setChime(0);
-      sfx.success();
-      this.flash.fire(this.wallPoint);
-      this.ring.set(0);
-      for (const t of [...this.titleTexts, ...this.endTexts]) t.show(false);
-      this.runCurtain(() => this.startRun());
+    if (startFired || this.debugKey('Enter')) this.request({ t: 'start' });
+  }
+
+  // -------------------------------------------------------------------------
+  // Co-op plumbing. Every game-changing action goes through request(): solo
+  // and host apply it (the host also broadcasts it); a guest asks the host.
+
+  private get isGuest(): boolean {
+    return this.coop?.role === 'guest' && this.coop.connected;
+  }
+
+  /** True when a partner is connected, so summons need both players. */
+  private get duetMode(): boolean {
+    return !!this.coop?.connected;
+  }
+
+  private request(e: CoopEvent): void {
+    if (this.isGuest) this.coop!.send(e);
+    else this.apply(e, true);
+  }
+
+  /** Apply an event locally; the host also forwards it to the guest. */
+  private apply(e: CoopEvent, broadcast: boolean): void {
+    if (broadcast && this.coop?.isHost) this.coop.send(e);
+    switch (e.t) {
+      case 'start':
+        if ((this.phase === 'title' || this.phase === 'end') && this.curtainT < 0) this.doStart();
+        break;
+      case 'summon':
+        if (this.phase === 'level' && this.level && !this.level.busy && !this.level.solved) {
+          this.doSummon(e.pose, this.wallPoint.set(e.x, e.y, STAGE.z), e.duet);
+        }
+        break;
+      case 'pause':
+        this.pause();
+        break;
+      case 'resume':
+        if (this.paused) this.resume();
+        break;
+      case 'restart':
+        this.doRestart();
+        break;
+      case 'level':
+        // Safety net: keep the guest on the host's chapter.
+        if (this.phase !== 'level' || this.levelIndex !== e.i) this.enterLevel(e.i);
+        break;
     }
+  }
+
+  startCoop(role: CoopRole, code: string): Coop {
+    this.coop?.leave();
+    this.partnerCasters.root.position.x = role === 'host' ? PARTNER_OFFSET : -PARTNER_OFFSET;
+    const coop = new Coop(role, code, this.partnerLeft, this.partnerRight);
+    // Host: the guest asked for something, so decide and broadcast. Guest: the host decided.
+    coop.onEvent = (e) => this.apply(e, coop.isHost);
+    coop.onStatus = (text) => this.setWallStatus(`co-op · room ${code} · ${text}`);
+    this.coop = coop;
+    this.setWallStatus(`co-op · room ${code} · waiting for your partner…`);
+    return coop;
+  }
+
+  /** Small line of text under the stage for co-op status. */
+  setWallStatus(text: string): void {
+    if (this.statusText) {
+      this.statusText.mesh.removeFromParent();
+      (this.statusText.mesh.material as MeshBasicMaterial).map?.dispose();
+    }
+    const m = makeText([text], 0.09, { size: 48, italic: true });
+    m.position.set(0, STAGE.groundY - 0.3, STAGE.z);
+    this.wall.add(m);
+    this.statusText = new Fader(m, 2).show();
+    this.onStatus?.(text);
+  }
+
+  /** The creature we're confidently holding right now, if any. */
+  private localCharging(): PoseId | null {
+    let best: PoseId | null = null;
+    for (const p of POSES) {
+      const c = this.poses.confidence[p];
+      if (c > POSE_THRESHOLD && (!best || c > this.poses.confidence[best])) best = p;
+    }
+    return best;
+  }
+
+  private doStart(): void {
+    sfx.setChime(0);
+    sfx.success();
+    this.flash.fire(this.wallPoint);
+    this.ring.set(0);
+    for (const t of [...this.titleTexts, ...this.endTexts]) t.show(false);
+    this.runCurtain(() => this.startRun());
+  }
+
+  private doRestart(): void {
+    if (this.paused) this.resume();
+    this.hint.show(null);
+    this.levelTitles.forEach((t) => t.show(false));
+    this.runCurtain(() => this.startRun());
   }
 
   private startRun(): void {
@@ -152,6 +266,7 @@ class Game {
     this.runTime = 0;
     this.hintsUsed = 0;
     this.wrongCreatures = 0;
+    this.duets = 0;
     this.enterLevel(0);
   }
 
@@ -168,6 +283,7 @@ class Game {
     this.poses.reset();
     this.levelTitles[i].show();
     this.levelTitleTimer = 3.5;
+    if (this.coop?.isHost) this.coop.send({ t: 'level', i });
   }
 
   // -------------------------------------------------------------------------
@@ -207,13 +323,7 @@ class Game {
     // Desktop-only stand-ins for the pinch buttons.
     if (this.debugKey('KeyP')) choice = 'resume';
     if (this.debugKey('KeyR')) choice = 'restart';
-    if (choice === 'resume') this.resume();
-    else if (choice === 'restart') {
-      this.resume();
-      this.hint.show(null);
-      this.levelTitles.forEach((t) => t.show(false));
-      this.runCurtain(() => this.startRun());
-    }
+    if (choice) this.request({ t: choice });
   }
 
   private updateLevel(dt: number, pose: PoseResult, ready: boolean, pauseFired: boolean): void {
@@ -221,7 +331,7 @@ class Game {
     this.runTime += dt;
 
     if (pauseFired || this.debugKey('KeyP')) {
-      this.pause();
+      this.request({ t: 'pause' });
       return;
     }
     // Show the palms-up ring only once the gesture is clearly building.
@@ -246,23 +356,26 @@ class Game {
       if (this.debugKey('Digit3')) summoned = 'rabbit';
     }
 
+    // A guest only summons through the host; its own hold timer just drives the ring.
+    if (this.isGuest && pose.triggered) summoned = null;
+
     projectToWall(pose.anchor, this.room.lightPos, this.wallPoint);
-    this.ring.set(ready ? pose.progress : 0, this.wallPoint);
-    sfx.setChime(ready ? pose.progress : 0);
+    let ringProgress = ready ? pose.progress : 0;
+    if (ready && this.duetMode) {
+      // Duet: show the shared progress, and a faint ring while waiting for the partner.
+      const holding = this.localCharging() !== null;
+      const shared = this.isGuest ? this.coop!.partnerProgress : pose.progress;
+      ringProgress = holding ? Math.max(0.08, shared) : 0;
+    }
+    this.ring.set(ringProgress, this.wallPoint);
+    sfx.setChime(ringProgress);
 
     if (summoned && ready) {
       // Debug summons have no hand shadow: spawn mid-stage.
       if (!pose.triggered) this.wallPoint.set(-0.35, STAGE.groundY + 0.4, STAGE.z);
-      sfx.setChime(0);
-      sfx.success();
-      this.flash.fire(this.wallPoint);
-      this.ring.set(0);
-      this.hint.show(null);
-      this.hintShown = false;
-      if (!level.summon(summoned, this.wallPoint)) {
-        this.wrongCreatures++;
-        this.levelClock = HINT_DELAY; // show a right shape once it has faded
-      }
+      // Both players made the same creature together: a giant duet creature.
+      const duet = this.duetMode && this.coop!.partnerCharging === summoned;
+      this.request({ t: 'summon', pose: summoned, x: this.wallPoint.x, y: this.wallPoint.y, duet });
       return; // the cutscene owns this frame
     }
 
@@ -300,6 +413,24 @@ class Game {
     }
   }
 
+  private doSummon(pose: PoseId, spawn: Vector3, duet: boolean): void {
+    sfx.setChime(0);
+    sfx.success();
+    if (duet) {
+      sfx.charm();
+      this.duets++;
+    }
+    this.flash.fire(spawn);
+    this.ring.set(0);
+    this.hint.show(null);
+    this.hintShown = false;
+    this.poses.reset();
+    if (!this.level!.summon(pose, spawn, duet)) {
+      this.wrongCreatures++;
+      this.levelClock = HINT_DELAY; // show a right shape once it has faded
+    }
+  }
+
   private enterEnd(): void {
     this.level?.exit();
     this.level = undefined;
@@ -309,7 +440,7 @@ class Game {
     const story = this.levels.map((l) => l.storyLine());
     sfx.fanfare();
     const secs = Math.round(this.runTime);
-    const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50);
+    const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50) + this.duets * DUET_BONUS;
     const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     for (const f of this.endTexts) {
       f.mesh.removeFromParent();
@@ -322,7 +453,8 @@ class Game {
     // The plot the player's shadows wrote, one line per chapter.
     const tale = makeText(story, 0.27, { size: 50, italic: true, color: '#ffe9c4' });
     tale.position.set(0, STAGE.titleY - 0.38, STAGE.z);
-    const stats = makeText([`time ${time}  ·  score ${score}`], 0.15, { size: 60 });
+    const duetNote = this.duets ? `  ·  ${this.duets} duet${this.duets > 1 ? 's' : ''}` : '';
+    const stats = makeText([`time ${time}  ·  score ${score}${duetNote}`], 0.15, { size: 60 });
     stats.position.set(0, STAGE.titleY - 0.62, STAGE.z);
     const again = makeText(['hold an open palm to play again'], 0.16, { size: 52 });
     again.position.set(0, STAGE.groundY - 0.08, STAGE.z);
@@ -399,16 +531,20 @@ class ShadowPlaySystem extends createSystem({}) {
   }
 }
 
-function setupEnterButton(world: World): void {
-  const button = document.getElementById('enter-vr') as HTMLButtonElement | null;
-  if (!button || !world.xrEnabled) return;
-  button.hidden = false;
-  button.addEventListener('click', () => {
-    sfx.unlock();
-    world.launchXR();
+/** The 2D landing page: solo, or host/join an online co-op room. */
+function setupLobby(world: World, g: Game): void {
+  if (!world.xrEnabled) return;
+  const lobby = new Lobby({
+    onCoop: (role, code) => g.startCoop(role, code),
+    onEnter: () => {
+      sfx.unlock();
+      world.launchXR();
+    },
   });
+  g.onStatus = (text) => lobby.setStatus(text);
+  lobby.setVisible(true);
   world.visibilityState.subscribe((state) => {
-    button.hidden = state !== VisibilityState.NonImmersive;
+    lobby.setVisible(state === VisibilityState.NonImmersive);
     if (state !== VisibilityState.NonImmersive) sfx.unlock();
   });
 }
@@ -427,7 +563,7 @@ World.create(
   game = new Game(world);
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
-  setupEnterButton(world);
+  setupLobby(world, game);
   // Opening the Quest system menu pauses the game.
   world.visibilityState.subscribe((state) => {
     if (state === VisibilityState.VisibleBlurred) game?.pause();

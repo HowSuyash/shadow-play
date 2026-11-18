@@ -16,6 +16,8 @@ export abstract class Silhouette {
   private targetOpacity = 1;
   /** Extra uniform scale for "peel off the wall" births. */
   grow = 1;
+  /** Size multiplier: giant co-op duet creatures. */
+  boost = 1;
   protected readonly baseScale: number;
 
   constructor(scale = 1) {
@@ -43,7 +45,7 @@ export abstract class Silhouette {
     this.opacity += Math.max(-dt * 2, Math.min(dt * 2, this.targetOpacity - this.opacity));
     this.mat.opacity = this.opacity;
     this.root.visible = this.opacity > 0.01;
-    const s = this.baseScale * this.grow;
+    const s = this.baseScale * this.grow * this.boost;
     this.root.scale.set(s * this.facing, s, s);
     this.animate(dt, time, Math.abs(dx) / Math.max(dt, 1e-4));
   }
