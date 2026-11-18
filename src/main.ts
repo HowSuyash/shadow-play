@@ -46,6 +46,13 @@ const PROLOGUE: string[][] = [
   ['Every shadow you make can leave the wall', 'and become a weapon in your hands.'],
 ];
 const PROLOGUE_CARD = 4.6;
+/** Desktop battle: number keys stand in for the four shapes. */
+const EQUIP_KEYS: readonly (readonly [string, PoseId])[] = [
+  ['Digit1', 'dog'],
+  ['Digit2', 'bird'],
+  ['Digit3', 'rabbit'],
+  ['Digit4', 'snake'],
+];
 /** Height of the shadow wall's centre (see Room). */
 const WALL_CENTER_Y = 2.0;
 
@@ -1325,16 +1332,10 @@ class Game {
     // Desktop: number keys put a weapon in the mouse hand (Shift: the left hand).
     if (!this.world.session && !this.handTest) {
       const shift = this.mouse.shift || performance.now() - this.mouse.shiftAt < 300;
-      const keys: [string, PoseId][] = [
-        ['Digit1', 'dog'],
-        ['Digit2', 'bird'],
-        ['Digit3', 'rabbit'],
-        ['Digit4', 'snake'],
-      ];
-      for (const [code, p] of keys) if (this.debugKey(code)) input.equip = { pose: p, hand: shift ? 'left' : 'right' };
+      for (const [code, p] of EQUIP_KEYS) if (this.debugKey(code)) input.equip = { pose: p, hand: shift ? 'left' : 'right' };
     }
     // Desktop/debug: N wins the current wave (testing only).
-    if (this.debugKey('KeyN')) for (const m of b.monsters) for (const t of m.targets) if (t.alive) m.hit(t, 99, this.v1.set(0, 0, -1));
+    if (import.meta.env.DEV && this.debugKey('KeyN')) for (const m of b.monsters) for (const t of m.targets) if (t.alive) m.hit(t, 99, this.v1.set(0, 0, -1));
     b.update(dt, time, input);
     if (b.finished && this.curtainT < 0) {
       const i = this.battleIndex;

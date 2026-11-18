@@ -155,6 +155,18 @@ export interface BattleInput {
 
 const tmp = new Vector3();
 const tmp2 = new Vector3();
+
+/** Remove items failing `keep`, in place (no per-frame allocation). */
+function compact<T>(arr: T[], keep: (x: T) => boolean): void {
+  let j = 0;
+  for (let i = 0; i < arr.length; i++) if (keep(arr[i])) arr[j++] = arr[i];
+  arr.length = j;
+}
+
+function firstAlive(ts: Target[]): Target | undefined {
+  for (const t of ts) if (t.alive) return t;
+  return undefined;
+}
 const tmp3 = new Vector3();
 const DOWN_FWD = new Vector3();
 
@@ -373,7 +385,7 @@ export class Battle implements ArenaCtx {
     this.updateFlow(dtReal);
     // Monsters, rifts, projectiles.
     for (const r of this.rifts) r.update(dt);
-    this.rifts = this.rifts.filter((r) => !r.done);
+    compact(this.rifts, (r) => !r.done);
     for (const m of this.monsters) {
       m.update(dt, t, this);
       // Every defeat counts once, however it happened.
@@ -436,7 +448,7 @@ export class Battle implements ArenaCtx {
         break;
       case 'fight': {
         this.spawnT -= dt;
-        const alive = this.monsters.filter((m) => m.alive).length;
+        const alive = this.aliveCount();
         const waveDef = def.waves[this.wave];
         if (this.queue.length && alive + this.rifts.length < waveDef.maxAlive && this.spawnT <= 0) {
           this.spawn(this.queue.shift()!);
@@ -520,6 +532,12 @@ export class Battle implements ArenaCtx {
 
   // -------------------------------------------------------------------------
   // Shadows → weapons
+
+  private aliveCount(): number {
+    let n = 0;
+    for (const m of this.monsters) if (m.alive) n++;
+    return n;
+  }
 
   private holding(p: PoseId): boolean {
     const id = WEAPON_OF[p];
@@ -666,7 +684,7 @@ export class Battle implements ArenaCtx {
       if (k < 1 && Math.random() < 0.7) this.sparks.gather(rig.pos, 0.2, 2, 0xffc46a);
     }
     for (const c of this.condensing) if (c.t >= 0.6) c.s.root.removeFromParent();
-    this.condensing = this.condensing.filter((c) => c.t < 0.6);
+    compact(this.condensing, (c) => c.t < 0.6);
     // Label above a freshly made weapon.
     if (this.weaponLabel) {
       this.weaponLabelT -= dt;
@@ -860,7 +878,7 @@ export class Battle implements ArenaCtx {
       }
       if (s.life <= 0 || s.pos.y < -0.2) this.endShot(s);
     }
-    this.shots = this.shots.filter((s) => s.alive);
+    compact(this.shots, (s) => s.alive);
   }
 
   private endShot(s: Shot): void {
@@ -919,7 +937,7 @@ export class Battle implements ArenaCtx {
         this.hurt(1);
       } else if (o.life <= 0 || o.pos.y < -0.3) this.popOrb(o, 0x8c5cff);
     }
-    this.orbs = this.orbs.filter((o) => o.alive);
+    compact(this.orbs, (o) => o.alive);
   }
 
   /** The Moon Shield turns an orb back on whoever threw it. */
@@ -941,7 +959,7 @@ export class Battle implements ArenaCtx {
 
   private updateReflected(o: Orb, dt: number): void {
     const owner = o.owner;
-    const target = owner?.alive ? owner.targets.find((t) => t.alive) : undefined;
+    const target = owner?.alive ? firstAlive(owner.targets) : undefined;
     if (target) {
       const want = tmp.subVectors(target.center, o.pos).normalize().multiplyScalar(o.vel.length());
       o.vel.lerp(want, Math.min(1, dt * 8));
@@ -1090,7 +1108,7 @@ export class Battle implements ArenaCtx {
     this.pict.scale.setScalar(1 + 0.03 * Math.sin(t * 2.5));
     // Status line: wave, monsters left, score.
     if (this.state === 'fight' && this.def) {
-      const left = this.queue.length + this.monsters.filter((m) => m.alive).length;
+      const left = this.queue.length + this.aliveCount();
       const boss = this.boss && this.boss.alive ? `cores ${this.boss.coresLeft}/3` : `monsters ${left}`;
       const text = `${this.def.boss ? 'BOSS' : `wave ${this.wave + 1}/${this.def.waves.length}`}  ·  ${boss}  ·  ✦ ${this.score}`;
       if (text !== this.statusText) {

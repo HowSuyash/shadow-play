@@ -853,7 +853,9 @@ export class ShadowEater extends Monster {
 
   /** How many of its three cores are still burning. */
   get coresLeft(): number {
-    return this.targets.filter((t) => t.alive).length;
+    let n = 0;
+    for (const t of this.targets) if (t.alive) n++;
+    return n;
   }
 
   protected override onHit(): void {
