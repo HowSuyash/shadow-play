@@ -27,7 +27,7 @@ export const STAGE = {
   left: -1.25,
   right: 1.25,
   /** Where titles and level names appear. */
-  titleY: EYE_Y + 0.95,
+  titleY: EYE_Y + 0.75,
 };
 
 /** Near-field pause menu, well within the 0.6 m seated reach envelope. */
