@@ -12,7 +12,7 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 | Pinch, open palm, palms-up gestures | ✅ | Unit tests; emulator: palms-up pauses and a pinch on Resume resumes |
 | Five-chapter story with branching outcomes (8 tales in I–III) | ✅ | Unit tests run every branch to completion headless; full playthrough in a headless GPU browser |
 | Boss: four seals, solo order and co-op pairs | ✅ | Unit tests |
-| Main menu, pause menu (Resume / Restart / Recenter / Leave), gallery | ✅ | Headless playthrough (keyboard stand-ins); emulator for the pinch buttons |
+| Main menu, pause menu (Resume / Restart / Recenter / Leave) in story, duel and memory, gallery | ✅ | Headless playthrough (keyboard stand-ins); emulator for the pinch buttons |
 | Shadow Duel (Gesture Challenge), solo and versus | ✅ | Unit tests (host validation, first hit, five rounds); headless solo match; **networked 5-round match between two browsers over the real relays**: identical creatures dealt, wrong claims rejected, scores matched on both sides (2–3), both finished |
 | Online co-op: room code, partner hand shadows, host-authoritative sync, duet rule | ✅ connection and sync | Two isolated headless browsers over the real public relays: connect, start, summon, chapter change and pause all stay in sync |
 | Shadow Memory (solo, per headset) | ✅ | Unit tests (grow on success, lives, replay, game over); headless run |

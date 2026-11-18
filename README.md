@@ -55,7 +55,7 @@ The main menu floats about 36 cm in front of you as big round buttons. **Pinch**
 | Choose a menu button | **Pinch** on it |
 | Start the story / play again | Hold an **open palm** toward the wall for 1 s |
 | Summon a creature | Hold its shape for 1 s |
-| Pause | Turn **both palms face-up** for 1 s |
+| Pause (story, duel or memory) | Turn **both palms face-up** for 1 s |
 | Pause menu | Pinch **Resume · Restart** (this chapter) **· Recenter · Leave** |
 
 Opening the Quest system menu also pauses the game.

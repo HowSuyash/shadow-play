@@ -174,15 +174,17 @@ class Game {
 
     const inLevel = this.phase === 'level' && this.level !== undefined;
     const levelReady = inLevel && !this.paused && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
-    const canPause = inLevel && !this.paused && this.curtainT < 0;
+    // Pause (palms up) works wherever you're playing: story, duel or memory.
+    const playing = inLevel || this.phase === 'duel' || this.phase === 'memory';
+    const canPause = playing && !this.paused && this.curtainT < 0;
     const openPalmPhase = this.phase === 'title' || this.phase === 'end' || this.phase === 'gallery';
     const g = this.gestures.update(dt, openPalmPhase && this.curtainT < 0, canPause);
     // Co-op "shadow duet": the host's summon only charges while the partner holds a shape too.
     // (If the partner isn't tracking hands yet, e.g. still on the 2D page, play on solo.)
     const partnerInVR = this.partnerLeft.tracked || this.partnerRight.tracked;
     const partnerHolding = !this.duetMode || !partnerInVR || this.coop!.partnerCharging !== null;
-    const duelOpen = this.phase === 'duel' && this.duel.open && this.curtainT < 0;
-    const memoryOpen = this.phase === 'memory' && this.memory.listening && this.curtainT < 0;
+    const duelOpen = this.phase === 'duel' && !this.paused && this.duel.open && this.curtainT < 0;
+    const memoryOpen = this.phase === 'memory' && !this.paused && this.memory.listening && this.curtainT < 0;
     const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen || memoryOpen);
 
     if (this.coop) {
@@ -191,11 +193,12 @@ class Game {
     }
 
     this.collectPinches();
-    if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
+    if (this.paused && playing) this.updatePaused(dt);
+    else if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
     else if (this.phase === 'gallery') this.updateGallery(g.start);
+    else if ((this.phase === 'duel' || this.phase === 'memory') && (g.pause || this.debugKey('KeyP'))) this.request({ t: 'pause' });
     else if (this.phase === 'duel') this.updateDuel(pose);
     else if (this.phase === 'memory') this.updateMemory(pose);
-    else if (inLevel && this.paused) this.updatePaused(dt);
     else if (inLevel) this.updateLevel(dt, pose, levelReady, g.pause);
 
     // The shadow world freezes while paused.
@@ -207,9 +210,11 @@ class Game {
     if (this.phase !== 'gallery') this.backMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'duel') this.duelMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'memory') this.memoryMenu.update(dt, Game.NONE, Game.NONE);
-    this.memory.update(dt, time);
+    if (!this.paused) {
+      this.memory.update(dt, time);
+      this.duel.update(dt, time);
+    }
     this.gallery.update(dt, time);
-    this.duel.update(dt, time);
     // Sparks gather into the ring while a shape is held.
     const rp = this.ring.progress;
     if (rp > 0.03 && Math.random() < 0.3 + rp) this.particles.gather(this.ring.target, 0.32, 1);
@@ -578,6 +583,9 @@ class Game {
 
   private doRestart(): void {
     if (this.paused) this.resume();
+    // Restart whatever is being played.
+    if (this.phase === 'duel') return this.enterDuel();
+    if (this.phase === 'memory') return this.enterMemory();
     this.hint.show(null);
     this.levelTitles.forEach((t) => t.show(false));
     this.levelSubtitles.forEach((t) => t.show(false));
@@ -622,7 +630,7 @@ class Game {
   // Pause: both palms up for 1 s → pinch Resume / Restart.
 
   pause(): void {
-    if (this.phase !== 'level' || this.paused) return;
+    if ((this.phase !== 'level' && this.phase !== 'duel' && this.phase !== 'memory') || this.paused) return;
     this.paused = true;
     this.menu.setVisible(true);
     this.ring.set(0);
@@ -840,8 +848,8 @@ class Game {
   }
 
   private describe(): string {
-    if (this.phase === 'memory') return `memory ${this.memory.phase} ${this.memory.index}/${this.memory.seq.length} lives ${this.memory.lives} best ${this.memory.best} seq ${this.memory.seq.join(',')}`;
-    if (this.phase === 'duel') return `duel round ${this.duel.round + 1} ${this.duel.open ? 'open' : ''}${this.duel.done ? ' DONE' : ''} score ${this.duel.score.host}-${this.duel.score.guest}`;
+    if (this.phase === 'memory') return `${this.paused ? 'PAUSED  ' : ''}memory ${this.memory.phase} ${this.memory.index}/${this.memory.seq.length} lives ${this.memory.lives} best ${this.memory.best} seq ${this.memory.seq.join(',')}`;
+    if (this.phase === 'duel') return `${this.paused ? 'PAUSED  ' : ''}duel round ${this.duel.round + 1} ${this.duel.open ? 'open' : ''}${this.duel.done ? ' DONE' : ''} score ${this.duel.score.host}-${this.duel.score.guest}`;
     if (this.phase !== 'level' || !this.level) return this.phase;
     const l = this.level;
     return `${this.paused ? 'PAUSED  ' : ''}level ${l.numeral} "${l.title}"${l.busy ? ' (cutscene)' : ''}${l.solved ? ' SOLVED' : ''}  clock ${this.levelClock.toFixed(1)}s`;
