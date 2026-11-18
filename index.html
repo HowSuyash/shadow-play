@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="theme-color" content="#120a06" />
+    <link rel="icon" href="data:," />
+    <title>Shadow Play</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0604;
+        overflow: hidden;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      #scene-container {
+        position: fixed;
+        inset: 0;
+      }
+      #enter-vr {
+        position: fixed;
+        left: 50%;
+        bottom: 9%;
+        transform: translateX(-50%);
+        padding: 22px 48px;
+        font: 600 28px Georgia, serif;
+        letter-spacing: 0.08em;
+        color: #2b1709;
+        background: radial-gradient(circle at 50% 40%, #ffe2a8, #e8a95a);
+        border: 2px solid #ffcf86;
+        border-radius: 48px;
+        box-shadow: 0 0 40px #ff9a3c88;
+        cursor: pointer;
+        z-index: 10;
+      }
+      #enter-vr[hidden] {
+        display: none;
+      }
+      #boot-note {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 3%;
+        text-align: center;
+        color: #c9a57a;
+        font-size: 15px;
+        z-index: 10;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="scene-container"></div>
+    <button id="enter-vr" hidden>Enter Shadow Play</button>
+    <div id="boot-note">Hands only &middot; seated &middot; about 5 minutes</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

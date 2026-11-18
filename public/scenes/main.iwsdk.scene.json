@@ -1,0 +1,12 @@
+{
+  "version": "iwsdk.scene.v1",
+  "units": "meters",
+  "environment": {
+    "toneMapping": "aces",
+    "exposure": 1.0,
+    "shadows": true,
+    "shadowMapType": "pcf-soft"
+  },
+  "resources": {},
+  "nodes": []
+}
