@@ -21,6 +21,7 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 | Lobby: six-character codes, Copy invite link, player slots | ✅ | Two-browser test joins via the `?room=` link; screenshot |
 | Settings (sound, effects; saved) and Credits | ✅ | Emulator: pinch Settings → Sound cycles and persists |
 | Shadow Dragon (legendary unlock: finale + gallery) | ✅ | Full headless playthrough to the ending |
+| Five 360° 3D worlds (Indian shadow-puppetry temple, Sky Kingdom, Forest, Castle, Shadow Realm), per-chapter, with reactions, fade transitions and per-world audio | ✅ | Headless GPU screenshots from three directions per world (60 fps, 18–28 draw calls); emulator in XR (temple around the player, hand shadow intact); full playthrough across all worlds |
 | Progress, stars, achievements | ✅ | Unit tests; gallery shows them |
 | Transformation particles, dust, partner glow avatar | ✅ | Screenshots; 60 fps (display cap) on an integrated AMD GPU at 1000×620 |
 | Deploy: GitHub Pages via Actions (typecheck → tests → build), Vercel config | ✅ | Live at https://howsuyash.github.io/shadow-play/ |
@@ -39,7 +40,7 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 - **No separate lobby "ready" step:** in co-op the game starts when either player chooses Story or Duel.
 - **Settings covers sound and effects only.** Recenter is in the pause menu.
 - **Gesture calibration is via tunable thresholds** (`POSE_CONFIG`), not an in-game calibration flow.
-- **Environments are stylised silhouette backdrops** on the shadow wall (village, forest, castle, moon and islands), not separate 3D rooms. This keeps the single-wall shadow-theatre concept and the frame budget.
+- **Worlds are procedural geometry, not detailed authored 3D art.** There are no external models or textures, so the look is stylised, not "Unreal-quality". There's no spatial (positional) audio yet: the ambience is stereo. The other player sees your glowing hands, not a full body avatar.
 
 ## Test results
 

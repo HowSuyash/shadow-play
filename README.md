@@ -13,6 +13,20 @@ A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the brows
 
 ---
 
+## Five worlds around you
+
+When you enter VR you're not looking at a screen: you're **inside** a 360° procedural 3D world that changes with the story. The shadow wall stays within reach, and the scenery surrounds you on every side.
+
+| World | Where | What surrounds you |
+|---|---|---|
+| **Shadow Theatre** | menus, Chapter II | An ancient **Indian shadow-puppetry temple**: carved sandstone pillars with brass bands, a tiered **gopuram** tower crowning the shadow wall, tall **kuthuvilakku** lamps, floating brass **diyas**, a marigold **toran**, glowing translucent **Tholu Bommalata**-style leather puppets, a golden rangoli floor, a warm keyhole doorway, and a tanpura-like drone |
+| **Sky Kingdom** | Chapter I, the ending | You sit on a floating island above a sunset sea of clouds: other islands, a sky palace, waterfalls, a lantern-lit bridge, a pale moon, wind |
+| **Forgotten Forest** | Chapter III | Giant trees and roots, glowing mushrooms, cyan fireflies that drift toward your hands, a tunnel into the hill, crickets |
+| **Dark Castle** | Chapter IV | Gothic pillars and arches, sealed giant doors behind you, violet torches, glowing trap glyphs, banners, mist |
+| **Shadow Realm** | Chapter V | Colossal ruined pillars, orbiting rocks, violet energy rings, an icy moon, a cracked glowing floor, and the Shadow Eater looming over the wall |
+
+Art direction: warm gold for magic, deep navy for darkness, violet for the Shadow Eater's corruption. Each world reacts when a creature comes alive (lamps flare, mushrooms pulse, runes blaze, the Shadow Eater's eyes burn). Moving between worlds uses a comfortable head-locked fade to black and a portal burst on the wall, with no forced camera movement.
+
 ## The four hand shadows
 
 Hold the shape in front of the candle until the glowing ring around its shadow fills (1 second). Shapes are scored with forgiving soft rules, so near-misses still count.
@@ -126,6 +140,8 @@ Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub 
 7. **The transformation** ([src/effects/particles.ts](src/effects/particles.ts)): sparks gather into the ring while you hold a shape. Then a flash, a gold-and-purple burst and a chime, and the creature grows out of your shadow and drops into the scene. The whole particle system is one pooled additive `Points` draw call, which also carries the dust drifting through the candlelight.
 
 ## Art, audio and performance
+
+- **Worlds:** [src/scene/worlds.ts](src/scene/worlds.ts) builds each world lazily the first time it's visited. Repeated scenery (pillars, trees, mushrooms, islands, rocks, lamps) is instanced. Scenery uses **baked emissive light** rather than extra real-time lights, so the hand shadows on the wall keep their contrast. Each world costs 18–28 draw calls and holds 60 fps (the display cap) on an integrated laptop GPU.
 
 - **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
 - **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.
