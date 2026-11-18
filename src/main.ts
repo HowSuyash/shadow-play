@@ -1105,6 +1105,41 @@ class ShadowPlaySystem extends createSystem({}) {
   }
 }
 
+/**
+ * Desktop only: drag with the mouse (or a finger) to look around the 3D
+ * world. In VR the headset drives the camera, so this does nothing there.
+ */
+function setupDesktopLook(world: World): void {
+  const el = document.getElementById('scene-container');
+  if (!el) return;
+  const cam = world.camera;
+  let yaw = 0;
+  let pitch = 0;
+  let base: { x: number; y: number; z: number } | undefined;
+  let dragging = false;
+  let lx = 0;
+  let ly = 0;
+  el.addEventListener('pointerdown', (e) => {
+    if (world.session) return;
+    if (!base) {
+      cam.rotation.order = 'YXZ';
+      base = { x: cam.rotation.x, y: cam.rotation.y, z: cam.rotation.z };
+    }
+    dragging = true;
+    lx = e.clientX;
+    ly = e.clientY;
+  });
+  window.addEventListener('pointerup', () => (dragging = false));
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging || world.session || !base) return;
+    yaw -= (e.clientX - lx) * 0.005;
+    pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - ly) * 0.005));
+    lx = e.clientX;
+    ly = e.clientY;
+    cam.rotation.set(base.x + pitch, base.y + yaw, 0, 'YXZ');
+  });
+}
+
 /** The 2D landing page: solo, or host/join an online co-op room. */
 function setupLobby(world: World, g: Game): void {
   if (!world.xrEnabled) return;
@@ -1176,6 +1211,7 @@ World.create(
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
   setupLobby(world, game);
+  setupDesktopLook(world);
   // Opening the Quest system menu pauses the game.
   world.visibilityState.subscribe((state) => {
     if (state === VisibilityState.VisibleBlurred) game?.pause();
