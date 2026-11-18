@@ -319,7 +319,7 @@ export class Shield extends Weapon {
     super(hand);
     const body = new Mesh(
       new CylinderGeometry(SHIELD_RADIUS, SHIELD_RADIUS * 0.96, 0.03, 40),
-      new MeshStandardMaterial({ color: 0x5a6f8c, metalness: 0.85, roughness: 0.3, emissive: 0x24405e, emissiveIntensity: 0.5 }),
+      new MeshStandardMaterial({ color: 0x3a4a62, metalness: 0.85, roughness: 0.35, emissive: 0x1a3048, emissiveIntensity: 0.5 }),
     );
     body.rotation.x = Math.PI / 2;
     const face = new Mesh(new CircleGeometry(SHIELD_RADIUS * 0.93, 40), new MeshBasicMaterial({ map: moonFaceTexture(), fog: false }));
@@ -327,6 +327,20 @@ export class Shield extends Weapon {
     this.rim = new MeshBasicMaterial({ color: 0xbfe3ff, fog: false, toneMapped: false });
     const rim = new Mesh(new TorusGeometry(SHIELD_RADIUS, 0.012, 8, 48), this.rim);
     rim.position.z = 0.008;
+    // The back you see while holding it: dark wood, leather straps, a moon-silver boss.
+    const back = new Mesh(new CircleGeometry(SHIELD_RADIUS * 0.94, 40), new MeshStandardMaterial({ color: 0x2a2018, roughness: 0.8 }));
+    back.position.z = -0.016;
+    back.rotation.y = Math.PI;
+    const leather = new MeshStandardMaterial({ color: 0x4a2c18, roughness: 0.7 });
+    for (const y of [-0.06, 0.06]) {
+      const strap = new Mesh(new BoxGeometry(SHIELD_RADIUS * 1.6, 0.03, 0.012), leather);
+      strap.position.set(0, y, -0.022);
+      this.root.add(strap);
+    }
+    const boss = new Mesh(new SphereGeometry(0.035, 12, 8), new MeshStandardMaterial({ color: 0xbfd8f0, metalness: 0.9, roughness: 0.25, emissive: 0x24405e }));
+    boss.scale.z = 0.5;
+    boss.position.z = -0.02;
+    this.root.add(back, boss);
     this.aura = new MeshBasicMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.12, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, fog: false });
     const aura = new Mesh(new CircleGeometry(SHIELD_RADIUS * 1.35, 40), this.aura);
     aura.position.z = 0.03;

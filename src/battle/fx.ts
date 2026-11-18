@@ -14,7 +14,10 @@ import {
   Sprite,
   SpriteMaterial,
   Vector3,
+  type InstancedMesh,
+  type Material,
   type MeshStandardMaterialParameters,
+  type Object3D,
 } from '@iwsdk/core';
 
 /** Soft round glow used by sparks, halos and orbs (made once, shared). */
@@ -324,4 +327,53 @@ export function segmentDistance(p: Vector3, a: Vector3, b: Vector3): number {
   const y = a.y + aby * t - p.y;
   const z = a.z + abz * t - p.z;
   return Math.sqrt(x * x + y * y + z * z);
+}
+
+/**
+ * Merge sibling meshes that share a material into one mesh (per parent), so
+ * an articulated monster costs a draw call per moving part, not per piece.
+ * Meshes in `keep` (animated or referenced individually) are left alone.
+ */
+export function mergeStatic(root: Object3D, keep: Set<Object3D>): void {
+  const parents: Object3D[] = [];
+  root.traverse((o) => parents.push(o));
+  for (const parent of parents) {
+    const byMat = new Map<Material, Mesh[]>();
+    for (const c of parent.children) {
+      const m = c as Mesh;
+      if (!m.isMesh || (m as InstancedMesh).isInstancedMesh || keep.has(m) || m.children.length || Array.isArray(m.material)) continue;
+      const list = byMat.get(m.material as Material) ?? [];
+      list.push(m);
+      byMat.set(m.material as Material, list);
+    }
+    for (const [mat, list] of byMat) {
+      if (list.length < 2) continue;
+      const parts = list.map((m) => {
+        m.updateMatrix();
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+        g.applyMatrix4(m.matrix);
+        return g;
+      });
+      const total = parts.reduce((n, g) => n + g.attributes.position.count, 0);
+      const pos = new Float32Array(total * 3);
+      const nor = new Float32Array(total * 3);
+      let o = 0;
+      for (const g of parts) {
+        pos.set(g.attributes.position.array as Float32Array, o * 3);
+        if (g.attributes.normal) nor.set(g.attributes.normal.array as Float32Array, o * 3);
+        o += g.attributes.position.count;
+        g.dispose();
+      }
+      const merged = new BufferGeometry();
+      merged.setAttribute('position', new BufferAttribute(pos, 3));
+      merged.setAttribute('normal', new BufferAttribute(nor, 3));
+      merged.computeBoundingSphere();
+      const mesh = new Mesh(merged, mat);
+      parent.add(mesh);
+      for (const m of list) {
+        parent.remove(m);
+        m.geometry.dispose();
+      }
+    }
+  }
 }

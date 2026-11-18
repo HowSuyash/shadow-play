@@ -141,6 +141,8 @@ class Game {
   private storyIndex = 0;
   private storyT = 0;
   private storyTexts: Fader[] = [];
+  /** Dev/test only: drive battle weapons from (injected) tracked hands without an XR session. */
+  handTest = false;
   /** Desktop battle: the mouse is your sword hand. */
   readonly mouse = { x: 0, y: -0.2, down: false, clicked: false, shift: false, space: false, shiftAt: -1e9 };
   private savedCam: { p: Vector3; q: Quaternion } | undefined;
@@ -1255,14 +1257,14 @@ class Game {
     input.equip = null;
     input.aim = null;
     const b = this.battle;
-    if (this.world.session) {
+    if (this.world.session || this.handTest) {
       b.rigs.left.fromHand(this.poses.left, this.gestures.pinchL.down, this.gestures.pinchL.started, dt);
       b.rigs.right.fromHand(this.poses.right, this.gestures.pinchR.down, this.gestures.pinchR.started, dt);
     } else {
       this.desktopRigs(dt, input);
     }
     // Desktop: number keys put a weapon in the mouse hand (Shift: the left hand).
-    if (!this.world.session) {
+    if (!this.world.session && !this.handTest) {
       const shift = this.mouse.shift || performance.now() - this.mouse.shiftAt < 300;
       const keys: [string, PoseId][] = [
         ['Digit1', 'dog'],
@@ -1311,7 +1313,7 @@ class Game {
     input.aim = this.aimDir;
     // Left guard: low-left, raised in front of you while Space is held.
     if (this.mouse.space) d.local.set(-0.05, -0.07, -0.36);
-    else d.local.set(-0.2, -0.2, -0.42);
+    else d.local.set(-0.27, -0.25, -0.5);
     room.worldToLocal(cam.localToWorld(this.v4.copy(d.local)));
     cam.getWorldDirection(d.fwd);
     cam.getWorldQuaternion(d.q);

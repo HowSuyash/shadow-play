@@ -18,7 +18,7 @@ import {
   Vector3,
   type Sprite,
 } from '@iwsdk/core';
-import { glowMat, halo, rimMaterial, type Sparks } from './fx.js';
+import { glowMat, halo, mergeStatic, rimMaterial, type Sparks } from './fx.js';
 
 export type MonsterKind = 'imp' | 'wraith' | 'brute' | 'boss';
 
@@ -79,6 +79,8 @@ export abstract class Monster {
   dying = false;
   /** Fully gone: Battle removes it. */
   dead = false;
+  /** Battle has scored this defeat. */
+  counted = false;
   /** Horizontal knockback velocity. */
   readonly knock = new Vector3();
   /** Direction (yaw) of this monster's slot around the player. */
@@ -99,6 +101,22 @@ export abstract class Monster {
     const t: Target = { center: new Vector3(), radius, alive: true, hp, maxHp: hp, owner: this, cooldown: 0 };
     this.targets.push(t);
     return t;
+  }
+
+  private readonly glows = new Map<number, MeshBasicMaterial>();
+  /** One glowing material per colour per monster (so its pieces can merge). */
+  protected glow(color: number): MeshBasicMaterial {
+    let m = this.glows.get(color);
+    if (!m) {
+      m = glowMat(color);
+      this.glows.set(color, m);
+    }
+    return m;
+  }
+
+  /** Merge the static pieces of the finished model; `keep` lists parts animated on their own. */
+  protected bake(...keep: Object3D[]): void {
+    mergeStatic(this.model, new Set(keep));
   }
 
   protected rim(color: number, emissive: number, rim: number, metal = 0.2): RimMat {
@@ -222,6 +240,8 @@ export abstract class Monster {
         (m.material as MeshBasicMaterial).dispose?.();
       }
     });
+    for (const m of this.mats) m.dispose();
+    for (const m of this.glows.values()) m.dispose();
   }
 }
 
@@ -252,21 +272,21 @@ export class Imp extends Monster {
     const torso = new Mesh(new SphereGeometry(0.17, 14, 10), skin);
     torso.scale.set(1, 1.15, 0.85);
     torso.position.set(0, 0.16, 0.02);
-    const belly = new Mesh(new TorusGeometry(0.06, 0.012, 6, 16), glowMat(0xc06bff));
+    const belly = new Mesh(new TorusGeometry(0.06, 0.012, 6, 16), this.glow(0xc06bff));
     belly.position.set(0, 0.12, 0.15);
     this.head = pivotAt(0, 0.38, 0.08);
     const skull = new Mesh(new SphereGeometry(0.11, 14, 10), skin);
     skull.scale.set(1, 0.9, 1.1);
     const jaw = new Mesh(new BoxGeometry(0.13, 0.03, 0.08), dark);
     jaw.position.set(0, -0.06, 0.06);
-    const mouth = new Mesh(new BoxGeometry(0.09, 0.012, 0.01), glowMat(0xff6ad5));
+    const mouth = new Mesh(new BoxGeometry(0.09, 0.012, 0.01), this.glow(0xff6ad5));
     mouth.position.set(0, -0.035, 0.105);
     this.head.add(skull, jaw, mouth);
     for (const s of [-1, 1]) {
       const horn = new Mesh(new ConeGeometry(0.025, 0.14, 6), dark);
       horn.position.set(s * 0.07, 0.09, -0.02);
       horn.rotation.set(-0.5, 0, -s * 0.5);
-      const eye = new Mesh(new SphereGeometry(0.018, 8, 6), glowMat(0xf0a0ff));
+      const eye = new Mesh(new SphereGeometry(0.018, 8, 6), this.glow(0xf0a0ff));
       eye.position.set(s * 0.045, 0.01, 0.095);
       const glow = halo(0xc35cff, 0.12, 0.9);
       glow.position.copy(eye.position);
@@ -283,7 +303,7 @@ export class Imp extends Monster {
       const fore = cyl(0.028, 0.02, 0.22, skin);
       const hand = pivotAt(0, -0.22, 0);
       for (let c = -1; c <= 1; c++) {
-        const claw = new Mesh(new ConeGeometry(0.009, 0.08, 5), glowMat(0xe6c8ff));
+        const claw = new Mesh(new ConeGeometry(0.009, 0.08, 5), this.glow(0xe6c8ff));
         claw.position.set(c * 0.016, -0.04, 0.01);
         claw.rotation.x = Math.PI + 0.3;
         hand.add(claw);
@@ -318,6 +338,7 @@ export class Imp extends Monster {
     this.body.add(this.tail);
     this.model.add(this.body);
     this.core = this.target(0.36, 2);
+    this.bake();
   }
 
   protected syncTargets(): void {
@@ -428,7 +449,7 @@ export class Wraith extends Monster {
     const robe = new Mesh(new ConeGeometry(0.3, 0.95, 18, 1, true), cloth);
     robe.position.y = -0.5;
     for (const s of [-1, 1]) {
-      const eye = new Mesh(new SphereGeometry(0.016, 8, 6), glowMat(0xb8c4ff));
+      const eye = new Mesh(new SphereGeometry(0.016, 8, 6), this.glow(0xb8c4ff));
       eye.position.set(s * 0.045, -0.01, 0.16);
       const glow = halo(0x7d8cff, 0.14, 1);
       glow.position.copy(eye.position);
@@ -461,13 +482,14 @@ export class Wraith extends Monster {
     };
     this.handL = mkHand(-1);
     this.handR = mkHand(1);
-    this.orb = new Mesh(new SphereGeometry(0.06, 12, 8), glowMat(0xe2d4ff));
+    this.orb = new Mesh(new SphereGeometry(0.06, 12, 8), this.glow(0xe2d4ff));
     this.orbGlow = halo(0x8c6bff, 0.4, 0.9);
     this.orb.add(this.orbGlow);
     this.orb.position.set(0, -0.28, 0.32);
     this.model.add(hood, face, robe, this.orb);
     this.model.scale.setScalar(1.45);
     this.core = this.target(0.42, 2);
+    this.bake(...this.ribbons, this.orb);
   }
 
   protected syncTargets(): void {
@@ -583,7 +605,7 @@ export class Brute extends Monster {
     torso.position.y = 0.32;
     const chest = new Mesh(new BoxGeometry(0.62, 0.36, 0.12), iron);
     chest.position.set(0, 0.42, 0.25);
-    this.heart = new Mesh(new SphereGeometry(0.075, 12, 8), glowMat(0xd38bff));
+    this.heart = new Mesh(new SphereGeometry(0.075, 12, 8), this.glow(0xd38bff));
     this.heart.position.set(0, 0.4, 0.33);
     const heartGlow = halo(0xa64dff, 0.45, 0.9);
     this.heart.add(heartGlow);
@@ -595,7 +617,7 @@ export class Brute extends Monster {
       const horn = new Mesh(new ConeGeometry(0.045, 0.32, 8), iron);
       horn.position.set(s * 0.17, 0.95, 0.1);
       horn.rotation.z = -s * 0.9;
-      const eye = new Mesh(new SphereGeometry(0.02, 8, 6), glowMat(0xffb0ff));
+      const eye = new Mesh(new SphereGeometry(0.02, 8, 6), this.glow(0xffb0ff));
       eye.position.set(s * 0.05, 0.78, 0.24);
       const glow = halo(0xd05cff, 0.14, 1);
       glow.position.copy(eye.position);
@@ -622,7 +644,7 @@ export class Brute extends Monster {
         const headM = new Mesh(new SphereGeometry(0.15, 12, 10), iron);
         headM.position.set(0, 0, 0.8);
         for (let i = 0; i < 6; i++) {
-          const spike = new Mesh(new ConeGeometry(0.035, 0.14, 6), glowMat(0xb98cff));
+          const spike = new Mesh(new ConeGeometry(0.035, 0.14, 6), this.glow(0xb98cff));
           const a = (i / 6) * Math.PI * 2;
           spike.position.set(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0.8);
           spike.rotation.z = a - Math.PI / 2;
@@ -653,6 +675,7 @@ export class Brute extends Monster {
     this.legR = leg(1);
     this.model.add(this.body);
     this.core = this.target(0.48, 7);
+    this.bake(this.heart);
   }
 
   protected syncTargets(): void {
@@ -779,19 +802,19 @@ export class ShadowEater extends Monster {
       const horn = new Mesh(new ConeGeometry(0.22, 1.6, 10), skin);
       horn.position.set(s * 0.6, 0.75, -0.1);
       horn.rotation.z = -s * 0.6;
-      const eye = new Mesh(new SphereGeometry(0.11, 10, 8), glowMat(0xffc0ff));
+      const eye = new Mesh(new SphereGeometry(0.11, 10, 8), this.glow(0xffc0ff));
       eye.position.set(s * 0.25, 0.05, 0.62);
       const glow = halo(0xc04dff, 0.9, 1);
       glow.position.copy(eye.position);
       this.eyes.push(glow);
       this.headG.add(horn, eye, glow);
     }
-    const maw = new Mesh(new BoxGeometry(0.6, 0.08, 0.1), glowMat(0xff7ae0));
+    const maw = new Mesh(new BoxGeometry(0.6, 0.08, 0.1), this.glow(0xff7ae0));
     maw.position.set(0, -0.32, 0.62);
     this.headG.add(maw);
     this.model.add(robe, torso, this.headG);
     // Chest core.
-    const chestCore = new Mesh(new SphereGeometry(0.42, 18, 12), glowMat(0xf2c6ff));
+    const chestCore = new Mesh(new SphereGeometry(0.42, 18, 12), this.glow(0xf2c6ff));
     chestCore.position.set(0, 5.0, 1.0);
     chestCore.add(halo(0xb44dff, 2.4, 0.9));
     this.coreMeshes.push(chestCore);
@@ -808,12 +831,12 @@ export class ShadowEater extends Monster {
       const hand = new Mesh(new SphereGeometry(0.42, 14, 10), skin);
       hand.scale.set(1, 0.7, 1.2);
       for (let c = -1.5; c <= 1.5; c++) {
-        const claw = new Mesh(new ConeGeometry(0.07, 0.6, 6), glowMat(0xd8b8ff));
+        const claw = new Mesh(new ConeGeometry(0.07, 0.6, 6), this.glow(0xd8b8ff));
         claw.position.set(c * 0.16, -0.25, 0.35);
         claw.rotation.x = Math.PI / 2 + 0.6;
         palm.add(claw);
       }
-      const core = new Mesh(new SphereGeometry(0.2, 14, 10), glowMat(0xf2c6ff));
+      const core = new Mesh(new SphereGeometry(0.2, 14, 10), this.glow(0xf2c6ff));
       core.position.set(0, 0.2, 0.25);
       core.add(halo(0xb44dff, 1.3, 0.9));
       this.coreMeshes.push(core);
@@ -825,6 +848,7 @@ export class ShadowEater extends Monster {
       this.hands.push(this.target(0.38, 3));
     }
     this.root.position.copy(this.rest);
+    this.bake(...this.coreMeshes, ...this.uppers);
   }
 
   /** How many of its three cores are still burning. */

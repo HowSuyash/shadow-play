@@ -10,7 +10,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
-  PointLight,
   SphereGeometry,
   Vector3,
   type Object3D,
@@ -338,7 +337,15 @@ export class Battle implements ArenaCtx {
     // Monsters, rifts, projectiles.
     for (const r of this.rifts) r.update(dt);
     this.rifts = this.rifts.filter((r) => !r.done);
-    for (const m of this.monsters) m.update(dt, t, this);
+    for (const m of this.monsters) {
+      m.update(dt, t, this);
+      // Every defeat counts once, however it happened.
+      if (m.dying && !m.counted) {
+        m.counted = true;
+        this.kills++;
+        this.score += m.points;
+      }
+    }
     for (let i = this.monsters.length - 1; i >= 0; i--) {
       if (this.monsters[i].dead) {
         this.monsters[i].dispose();
@@ -939,8 +946,6 @@ export class Battle implements ArenaCtx {
       this.score += 500;
     }
     if (killed) {
-      this.kills++;
-      this.score += m.points;
       this.slowmo = m.kind === 'boss' ? 1.2 : 0.12;
       sfx.monsterDie(m.kind === 'boss' || m.kind === 'brute');
       this.sparks.burst(tg.center, m.kind === 'boss' ? 300 : 70, m.kind === 'boss' ? 5 : 2.2, 0x9a5cff, 1, 1);
@@ -1066,9 +1071,6 @@ export class Battle implements ArenaCtx {
     const fireColor = world === 'castle' || world === 'realm' ? 0xa66bff : world === 'forest' ? 0x9dffb0 : 0xffa040;
     brazier(-2.6, -3.2, fireColor);
     brazier(2.6, -3.2, fireColor);
-    const light = new PointLight(fireColor, 6, 12, 1.6);
-    light.position.set(0, 2.2, -3);
-    add(light);
     if (world === 'theatre') {
       // Temple courtyard: flagstones, gopuram towers, rows of pillars.
       const floor = new Mesh(new PlaneGeometry(26, 22), new MeshStandardMaterial({ color: 0x4a3222, roughness: 0.95 }));
