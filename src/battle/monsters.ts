@@ -836,9 +836,10 @@ export class ShadowEater extends Monster {
         claw.rotation.x = Math.PI / 2 + 0.6;
         palm.add(claw);
       }
-      const core = new Mesh(new SphereGeometry(0.2, 14, 10), this.glow(0xf2c6ff));
-      core.position.set(0, 0.2, 0.25);
-      core.add(halo(0xb44dff, 1.3, 0.9));
+      // The core burns in front of the palm (between the claws), facing you.
+      const core = new Mesh(new SphereGeometry(0.24, 14, 10), this.glow(0xf2c6ff));
+      core.position.set(0, 0.12, 0.6);
+      core.add(halo(0xb44dff, 1.6, 0.95));
       this.coreMeshes.push(core);
       palm.add(hand, core);
       shoulder.add(palm);
