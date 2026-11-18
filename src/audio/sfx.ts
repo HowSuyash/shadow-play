@@ -110,10 +110,209 @@ export class Sfx {
   private windFilter: BiquadFilterNode | undefined;
   private world = 'theatre';
 
+  // -------------------------------------------------------------------------
+  // Music: a generative song per world, scheduled ahead on the audio clock.
+
+  private musicBus: GainNode | undefined;
+  private musicTimer: ReturnType<typeof setInterval> | undefined;
+  private nextStep = 0;
+  private musicStep = 0;
+  private melodyIdx = 3;
+
+  /** Per-world song: tempo, scale (semitones), root, lead voice, rhythm. */
+  private static readonly SONGS: Record<string, { bpm: number; root: number; scale: number[]; lead: string; perc: string; bass: boolean; density: number }> = {
+    // Raga-flavoured (Bhairav-like) melody on a sitar pluck over tabla bols.
+    theatre: { bpm: 76, root: 261.63, scale: [0, 1, 4, 5, 7, 8, 11, 12], lead: 'sitar', perc: 'D.n.Dnn.D.n.dnn.', bass: false, density: 0.55 },
+    // Bright lydian bells and arpeggios above the clouds.
+    sky: { bpm: 84, root: 293.66, scale: [0, 2, 4, 6, 7, 9, 11, 12], lead: 'bell', perc: '..k...k...k...k.', bass: true, density: 0.7 },
+    // A mysterious dorian flute with soft plucked bass.
+    forest: { bpm: 62, root: 220, scale: [0, 2, 3, 5, 7, 9, 10, 12], lead: 'flute', perc: 'k.......k...k...', bass: true, density: 0.35 },
+    // Dark harmonic-minor organ and a tolling bell.
+    castle: { bpm: 54, root: 196, scale: [0, 2, 3, 5, 7, 8, 11, 12], lead: 'organ', perc: 'B...............', bass: true, density: 0.3 },
+    // Boss battle: taiko drums and a driving minor ostinato.
+    realm: { bpm: 104, root: 146.83, scale: [0, 2, 3, 5, 7, 8, 10, 12], lead: 'saw', perc: 'T.t.T.ttT.t.TTt.', bass: true, density: 0.6 },
+  };
+
+  private startMusic(): void {
+    if (!this.ctx || this.musicTimer) return;
+    this.musicBus = this.ctx.createGain();
+    this.musicBus.gain.value = 0.55;
+    this.musicBus.connect(this.master);
+    this.nextStep = this.ctx.currentTime + 0.1;
+    this.musicTimer = setInterval(() => this.scheduleMusic(), 50);
+  }
+
+  private scheduleMusic(): void {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const song = Sfx.SONGS[this.world] ?? Sfx.SONGS.theatre;
+    const stepDur = 60 / song.bpm / 2; // 8th notes
+    while (this.nextStep < this.ctx.currentTime + 0.25) {
+      this.playStep(song, this.musicStep, this.nextStep, stepDur);
+      this.musicStep++;
+      this.nextStep += stepDur;
+    }
+  }
+
+  private freq(song: { root: number; scale: number[] }, idx: number): number {
+    const n = song.scale.length - 1;
+    const oct = Math.floor(idx / n);
+    const deg = ((idx % n) + n) % n;
+    return song.root * Math.pow(2, (song.scale[deg] + 12 * oct) / 12);
+  }
+
+  private playStep(song: (typeof Sfx.SONGS)[string], step: number, t: number, dur: number): void {
+    const bus = this.musicBus!;
+    const p = song.perc[step % song.perc.length];
+    if (p === 'D') this.drum(t, 110, 55, 0.5, 0.35); // tabla "dha"
+    if (p === 'd') this.drum(t, 150, 90, 0.25, 0.2);
+    if (p === 'n') this.hit(t, 2600, 6, 0.12, 0.08); // tabla "na"
+    if (p === 'k') this.hit(t, 6000, 1, 0.05, 0.05);
+    if (p === 'T') this.drum(t, 90, 38, 0.8, 0.6); // taiko
+    if (p === 't') this.drum(t, 140, 70, 0.35, 0.25);
+    if (p === 'B' && step % 32 === 0) this.bell(t, song.root / 2, 0.18, 4);
+    // Bass on the downbeat of each bar.
+    if (song.bass && step % 8 === 0) {
+      const f = this.freq(song, step % 32 < 16 ? 0 : 4) / 2;
+      this.voice(song.lead === 'saw' ? 'sawbass' : 'bass', f, t, dur * 7, 0.18, bus);
+    }
+    if (song.lead === 'saw' && step % 2 === 0) {
+      // Boss ostinato: a driving 1-1-5-b6 figure.
+      const fig = [0, 0, 4, 5, 0, 0, 4, 3];
+      this.voice('saw', this.freq(song, fig[(step / 2) % 8]), t, dur * 1.6, 0.07, bus);
+    }
+    // Lead melody: a gentle random walk on the scale.
+    const strong = step % 2 === 0;
+    if (Math.random() < song.density * (strong ? 1 : 0.4)) {
+      this.melodyIdx += [-2, -1, -1, 0, 1, 1, 2][Math.floor(Math.random() * 7)];
+      this.melodyIdx = Math.max(0, Math.min(12, this.melodyIdx));
+      const len = song.lead === 'flute' || song.lead === 'organ' ? dur * 3.5 : dur * 2.2;
+      this.voice(song.lead, this.freq(song, this.melodyIdx), t, len, song.lead === 'organ' ? 0.07 : 0.11, bus);
+    }
+    // Pads: a soft chord every two bars (sky, castle, forest).
+    if ((song.lead === 'bell' || song.lead === 'organ' || song.lead === 'flute') && step % 16 === 0) {
+      for (const d of [0, 2, 4]) this.voice('pad', this.freq(song, d + (step % 32 === 0 ? 0 : 3)), t, dur * 15, 0.035, bus);
+    }
+  }
+
+  private voice(kind: string, f: number, t: number, dur: number, peak: number, dest: AudioNode): void {
+    const ctx = this.ctx!;
+    const g = ctx.createGain();
+    g.connect(dest);
+    const osc = (type: OscillatorType, freq: number, detune = 0) => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = freq;
+      o.detune.value = detune;
+      o.start(t);
+      o.stop(t + dur + 0.6);
+      return o;
+    };
+    if (kind === 'sitar') {
+      // Bright pluck with a twangy resonant filter sweep and a slight meend (bend).
+      const f1 = ctx.createBiquadFilter();
+      f1.type = 'bandpass';
+      f1.Q.value = 6;
+      f1.frequency.setValueAtTime(f * 6, t);
+      f1.frequency.exponentialRampToValueAtTime(f * 2, t + 0.4);
+      const o = osc('sawtooth', f);
+      o.frequency.setValueAtTime(f * 0.97, t);
+      o.frequency.linearRampToValueAtTime(f, t + 0.08);
+      o.connect(f1).connect(g);
+      osc('triangle', f * 2, 4).connect(g);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+    } else if (kind === 'flute') {
+      const o = osc('sine', f);
+      const lfo = osc('sine', 5);
+      const lg = ctx.createGain();
+      lg.gain.value = f * 0.012;
+      lfo.connect(lg).connect(o.frequency);
+      o.connect(g);
+      this.noise(t, 0.08, 'bandpass', f * 3, 2, peak * 0.15, 0.03);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.12);
+      g.gain.setTargetAtTime(0.0001, t + dur * 0.7, 0.15);
+    } else if (kind === 'bell') {
+      for (const [m, k] of [[1, 1], [2.76, 0.35], [5.4, 0.15]]) {
+        const pg = ctx.createGain();
+        pg.gain.setValueAtTime(peak * k, t);
+        pg.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.2);
+        osc('sine', f * m).connect(pg).connect(dest);
+      }
+      return;
+    } else if (kind === 'organ') {
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1400;
+      osc('square', f).connect(lp);
+      osc('square', f * 2, 6).connect(lp);
+      osc('sine', f / 2).connect(lp);
+      lp.connect(g);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.15);
+      g.gain.setTargetAtTime(0.0001, t + dur * 0.8, 0.25);
+    } else if (kind === 'pad') {
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1100;
+      osc('sawtooth', f, -7).connect(lp);
+      osc('sawtooth', f, 7).connect(lp);
+      lp.connect(g);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.8);
+      g.gain.setTargetAtTime(0.0001, t + dur * 0.8, 0.5);
+    } else {
+      // bass, sawbass, saw
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = kind === 'saw' ? 1800 : 500;
+      osc(kind === 'bass' ? 'triangle' : 'sawtooth', f).connect(lp);
+      lp.connect(g);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    }
+  }
+
+  private drum(t: number, f0: number, f1: number, dur: number, peak: number): void {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.6);
+    const g = ctx.createGain();
+    this.env(g, t, peak, 0.004, dur);
+    o.connect(g).connect(this.musicBus!);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  private hit(t: number, f: number, q: number, dur: number, peak: number): void {
+    this.noise(t, dur, 'bandpass', f, q, peak, 0.002);
+  }
+
+  private bell(t: number, f: number, peak: number, dur: number): void {
+    this.voice('bell', f, t, dur, peak, this.musicBus!);
+  }
+
+  /** Creature movement: paw pads, rabbit hops, snake hiss, boots. */
+  step(kind: 'paw' | 'hop' | 'hiss' | 'boot'): void {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t = this.now;
+    if (kind === 'paw') this.noise(t, 0.05, 'lowpass', 900, 1, 0.12);
+    else if (kind === 'boot') this.noise(t, 0.07, 'lowpass', 500, 1, 0.16);
+    else if (kind === 'hop') {
+      this.noise(t, 0.07, 'lowpass', 400, 1, 0.18);
+      this.tone(520, t, 0.08, 'sine', 0.04);
+    } else this.noise(t, 0.35, 'highpass', 4500, 0.7, 0.07, 0.06);
+  }
+
   /** Per-world soundscape: temple drone, forest crickets, castle depths, sky wind, realm pulse. */
   setWorld(world: string): void {
     this.world = world;
     if (!this.ctx) return;
+    this.startMusic();
     const ctx = this.ctx;
     if (!this.drone) {
       // Tanpura-like drone: Sa and Pa with slow shimmering beats.

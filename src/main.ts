@@ -1213,7 +1213,7 @@ World.create(
   world.renderer.shadowMap.enabled = true;
   game = new Game(world);
   // Dev-only handle for automated perf and flow tests (stripped from production builds).
-  if (import.meta.env.DEV) (window as unknown as { __shadowPlay: unknown }).__shadowPlay = { game, world };
+  if (import.meta.env.DEV) (window as unknown as { __shadowPlay: unknown }).__shadowPlay = { game, world, sfx };
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
   setupLobby(world, game);

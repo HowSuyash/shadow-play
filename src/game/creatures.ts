@@ -1,4 +1,5 @@
 import { Group, Mesh, MeshBasicMaterial } from '@iwsdk/core';
+import { sfx } from '../audio/sfx.js';
 import { capsule, circle, ellipse, glow, part, pivot, poly, shadowMaterial, withHole } from './shapes.js';
 
 /**
@@ -19,6 +20,9 @@ export abstract class Silhouette {
   /** Size multiplier: giant co-op duet creatures. */
   boost = 1;
   protected readonly baseScale: number;
+  /** Footstep sound while it moves (null = silent, e.g. the bird's flaps cover it). */
+  protected stepKind: 'paw' | 'hop' | 'hiss' | 'boot' | null = null;
+  private lastStep = 0;
 
   constructor(scale = 1) {
     this.baseScale = scale;
@@ -42,6 +46,10 @@ export abstract class Silhouette {
     const dx = this.root.position.x - this.lastX;
     this.lastX = this.root.position.x;
     this.stride += Math.abs(dx) / (0.12 * this.baseScale);
+    if (this.stepKind && this.root.visible && this.opacity > 0.5 && Math.floor(this.stride * (this.stepKind === 'hiss' ? 0.4 : 1)) !== this.lastStep) {
+      this.lastStep = Math.floor(this.stride * (this.stepKind === 'hiss' ? 0.4 : 1));
+      sfx.step(this.stepKind);
+    }
     this.opacity += Math.max(-dt * 2, Math.min(dt * 2, this.targetOpacity - this.opacity));
     this.mat.opacity = this.opacity;
     this.root.visible = this.opacity > 0.01;
@@ -72,6 +80,7 @@ export class Dog extends Silhouette {
 
   constructor() {
     super(1.15);
+    this.stepKind = 'paw';
     const m = this.mat;
     this.body = new Group();
     this.body.add(
@@ -220,6 +229,7 @@ export class Rabbit extends Silhouette {
 
   constructor() {
     super(1.25);
+    this.stepKind = 'hop';
     const m = this.mat;
     this.body = new Group();
     this.ears = pivot(
@@ -284,6 +294,7 @@ export class Thief extends Silhouette {
 
   constructor() {
     super(1.05);
+    this.stepKind = 'boot';
     const m = this.mat;
     for (const x of [-0.025, 0.025]) {
       const leg = pivot(x, 0.3, part([capsule(0, 0, 0, -0.285, 0.048), ellipse(0.03, -0.29, 0.045, 0.016)], m));
@@ -336,6 +347,7 @@ export class Kitten extends Silhouette {
 
   constructor() {
     super(1.1);
+    this.stepKind = 'paw';
     const m = this.mat;
     this.body = new Group();
     for (const x of [0.06, -0.06]) {
@@ -390,6 +402,7 @@ export class Snake extends Silhouette {
 
   constructor() {
     super(1.2);
+    this.stepKind = 'hiss';
     const m = this.mat;
     // One unit disc shared by every body segment, scaled per segment.
     const disc = part([circle(0, 0, 1)], m).geometry;
