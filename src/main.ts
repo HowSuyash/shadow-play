@@ -78,7 +78,9 @@ class Game {
   readonly progress = new Progress();
   readonly particles = new Particles();
   /** The five 3D worlds surrounding the player. */
-  readonly worlds = new Worlds();
+  readonly worlds: Worlds;
+  /** Your own hands glow softly gold in VR (the partner's glow in their colour). */
+  private readonly myGlow = new GlowHands(0xffc46a, '');
   /** Head-locked black sphere for comfortable fade-to-world transitions. */
   private readonly fade = new Mesh(
     new SphereGeometry(0.25, 16, 12),
@@ -149,7 +151,9 @@ class Game {
     this.nearField.add(this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
     this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.nearField);
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
-    this.room.root.add(this.particles.points, this.worlds.root);
+    this.worlds = new Worlds(world.renderer);
+    this.room.wallMaterial.envMapIntensity = 0; // keep hand shadows deep
+    this.room.root.add(this.particles.points, this.worlds.root, this.myGlow.root);
     this.fade.renderOrder = 1000;
     this.fade.frustumCulled = false;
     this.fade.visible = false;
@@ -262,6 +266,7 @@ class Game {
     if (this.poses.left.tracked) this.handPoints.push(this.poses.left.palmCenter);
     if (this.poses.right.tracked) this.handPoints.push(this.poses.right.palmCenter);
     this.worlds.update(dt, time, this.handPoints);
+    this.myGlow.update([this.hands.left, this.hands.right], time);
     this.partnerGlow?.update([this.partnerLeft, this.partnerRight], time);
     this.updateToast(dt);
     this.updateHandsNotice(dt);
@@ -614,6 +619,7 @@ class Game {
     const look = this.worlds.set(id);
     this.room.setLook(look);
     this.world.scene.fog = look.fog;
+    this.world.scene.environment = look.env ?? null;
     sfx.setWorld(id);
     // Portal flourish on the wall as the new world appears.
     this.particles.burst(this.wallPoint.set(0, STAGE.groundY + 0.6, STAGE.z), 90, 0.9);

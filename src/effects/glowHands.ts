@@ -23,12 +23,13 @@ export class GlowHands {
   constructor(color: number, name: string) {
     this.mesh = new InstancedMesh(
       new SphereGeometry(1, 8, 6),
-      new MeshBasicMaterial({ color: new Color(color), transparent: true, opacity: 0.85, blending: AdditiveBlending, depthWrite: false }),
+      new MeshBasicMaterial({ color: new Color(color), transparent: true, opacity: name ? 0.85 : 0.45, blending: AdditiveBlending, depthWrite: false }),
       JOINT_COUNT * 2,
     );
     this.mesh.frustumCulled = false;
     for (let i = 0; i < this.mesh.count; i++) this.mesh.setMatrixAt(i, this.zero);
-    this.label = makeText([name], 0.035, { size: 56, color: '#fff1d6' });
+    this.label = makeText([name || ' '], 0.035, { size: 56, color: '#fff1d6' });
+    this.label.visible = !!name;
     this.root.add(this.mesh, this.label);
     this.root.visible = false;
   }

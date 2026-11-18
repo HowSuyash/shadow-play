@@ -20,7 +20,13 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  OctahedronGeometry,
   PlaneGeometry,
+  PMREMGenerator,
+  PointLight,
+  Scene,
+  type Texture,
+  type WebGLRenderer,
   Points,
   PointsMaterial,
   Quaternion,
@@ -56,11 +62,15 @@ export interface WorldLook {
   hemiGround: number;
   hemiIntensity: number;
   fog: FogExp2 | null;
+  /** Image-based lighting for reflections (filled in by Worlds.set). */
+  env?: Texture | null;
 }
 
 interface WorldSet {
   root: Group;
   look: WorldLook;
+  /** Bright spots baked into this world's reflection map: [x, y, z, color, strength]. */
+  envLights?: [number, number, number, number, number][];
   update(dt: number, t: number, hands: Vector3[]): void;
   /** Something magical happened (a creature appeared): react to it. */
   react(): void;
@@ -169,7 +179,48 @@ function baked<T extends MeshStandardMaterial>(mat: T, k: number, tint?: number)
   if (mat.map && tint === undefined) mat.emissiveMap = mat.map;
   else if (tint === undefined) mat.emissive.copy(mat.color);
   mat.emissiveIntensity = k;
+  // Surface relief from the same noise texture: stone and bark stop looking flat.
+  if (mat.map) {
+    mat.bumpMap = mat.map;
+    mat.bumpScale = 1.2;
+  }
   return mat;
+}
+
+/** A soft beam of light (god ray) from `from` to `to`. Additive, no depth writes. */
+let shaftTex: CanvasTexture | undefined;
+function lightShaft(from: Vector3, to: Vector3, r0: number, r1: number, color: number, opacity: number): Mesh {
+  if (!shaftTex) {
+    const c = document.createElement('canvas');
+    c.width = 4;
+    c.height = 128;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.2, 'rgba(255,255,255,0.9)');
+    g.addColorStop(0.75, 'rgba(255,255,255,0.35)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 4, 128);
+    shaftTex = new CanvasTexture(c);
+  }
+  const dir = new Vector3().subVectors(to, from);
+  const len = dir.length();
+  const m = new Mesh(
+    new CylinderGeometry(r0, r1, len, 20, 1, true),
+    new MeshBasicMaterial({ color, map: shaftTex, transparent: true, opacity, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, fog: false }),
+  );
+  m.position.addVectors(from, to).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new Vector3(0, -1, 0), dir.normalize());
+  m.renderOrder = 3;
+  return m;
+}
+
+/** A real (non-shadow) light pool. */
+function lamp(color: number, intensity: number, distance: number, x: number, y: number, z: number): PointLight {
+  const l = new PointLight(color, intensity, distance, 2);
+  l.position.set(x, y, z);
+  return l;
 }
 
 const tmpM = new Matrix4();
@@ -235,7 +286,7 @@ function theatre(): WorldSet {
   ];
   const n = pillarSpots.length;
   const plinth = new InstancedMesh(new BoxGeometry(1, 1, 1), stone, n);
-  const shaft = new InstancedMesh(new CylinderGeometry(0.28, 0.32, 1, 8), stone, n);
+  const shaft = new InstancedMesh(new CylinderGeometry(0.28, 0.32, 1, 20), stone, n);
   const bands = new InstancedMesh(new TorusGeometry(0.33, 0.045, 6, 16), brass, n * 3);
   const capital = new InstancedMesh(new BoxGeometry(1, 1, 1), stone, n);
   pillarSpots.forEach(([x, z], i) => {
@@ -316,7 +367,8 @@ function theatre(): WorldSet {
   const diyaFlameStart = flames.length / 3;
   for (const h of diyaHome) flames.push(h.x, h.y + 0.05, h.z);
   const flamePts = glowPoints(flames, 0xffb24a, 0.13);
-  root.add(diyas, flamePts);
+  const flameHalo = glowPoints(flames, 0xff8a30, 0.5, 0.22);
+  root.add(diyas, flamePts, flameHalo);
 
   // Translucent leather shadow puppets (Tholu Bommalata) glowing on the side walls.
   const puppetShape = (): Shape[] => {
@@ -365,12 +417,45 @@ function theatre(): WorldSet {
       })(),
       12,
     ),
-    new MeshBasicMaterial({ color: 0xffc070, transparent: true, opacity: 0.85 }),
+    new MeshBasicMaterial({ color: 0xdbe8ff, transparent: true, opacity: 0.95 }),
   );
   keyhole.position.set(0, 0, 6.24);
   keyhole.rotation.y = Math.PI;
   root.add(keyhole);
-  const doorGlow = glowPoints([0, 1.4, 6.0], 0xffa040, 3.2, 0.5);
+  const doorGlow = glowPoints([0, 1.6, 6.0], 0x9ec4ff, 3.6, 0.55);
+  // Stone steps rising to the doorway, lined with rows of candles.
+  const steps = new InstancedMesh(new BoxGeometry(1, 1, 1), stone, 6);
+  const stepList: { p: Vector3; s: Vector3 }[] = [];
+  for (let k = 0; k < 6; k++) stepList.push({ p: new Vector3(0, 0.08 + k * 0.16, 4.75 + k * 0.26), s: new Vector3(3.4 - k * 0.12, 0.16 + k * 0.32, 0.3) });
+  placeAll(steps, stepList);
+  root.add(steps);
+  const wax = new MeshStandardMaterial({ color: 0xf4e6c8, roughness: 0.6, emissive: 0x6a4a20, emissiveIntensity: 0.6 });
+  const candleSpots: Vector3[] = [];
+  for (let k = 0; k < 6; k++) {
+    for (const sx of [-1, 1]) {
+      for (let c = 0; c < 3; c++) candleSpots.push(new Vector3(sx * (0.75 + c * 0.32 - k * 0.04), 0.16 + k * 0.32 + 0.0, 4.72 + k * 0.26));
+    }
+  }
+  // More candles clustered at the foot of the pillars.
+  for (const [px, pz] of pillarSpots) for (let c = 0; c < 4; c++) candleSpots.push(new Vector3(px + (c % 2 ? 0.55 : -0.55) * (c < 2 ? 1 : 0.6), 0, pz + (c < 2 ? 0.5 : -0.5)));
+  const candles = new InstancedMesh(new CylinderGeometry(0.025, 0.028, 1, 8), wax, candleSpots.length);
+  const candleFlames: number[] = [];
+  candleSpots.forEach((c, i) => {
+    const h = 0.08 + ((i * 37) % 10) * 0.012;
+    candles.setMatrixAt(i, tmpM.compose(tmpP.set(c.x, c.y + h / 2, c.z), tmpQ.identity(), tmpS.set(1, h, 1)));
+    candleFlames.push(c.x, c.y + h + 0.02, c.z);
+  });
+  candles.instanceMatrix.needsUpdate = true;
+  const candleGlow = glowPoints(candleFlames, 0xffa23a, 0.11);
+  const candleHalo = glowPoints(candleFlames, 0xff7a20, 0.45, 0.25);
+  root.add(candles, candleGlow, candleHalo);
+  // Cool moonlight pouring through the keyhole and down from an opening above the stage.
+  root.add(
+    lightShaft(new Vector3(0, 1.7, 6.1), new Vector3(0, 0.0, 2.2), 0.45, 1.5, 0x9ec4ff, 0.14),
+    lightShaft(new Vector3(0, 9, -0.2), new Vector3(0, 0, -0.9), 0.4, 1.8, 0xffd9a0, 0.07),
+  );
+  // Warm light pooling from the great lamps and the stage candle.
+  root.add(lamp(0xffa64a, 5, 7, -2.25, 2.1, WALL_Z + 0.6), lamp(0xffa64a, 5, 7, 2.25, 2.1, WALL_Z + 0.6), lamp(0x9ec4ff, 6, 9, 0, 1.6, 5.4));
   root.add(doorGlow);
 
   // Golden motes drifting high in the hall.
@@ -384,6 +469,7 @@ function theatre(): WorldSet {
   return {
     root,
     look: { wallTint: 0xffffff, hemiSky: 0x7a5232, hemiGround: 0x0a0c18, hemiIntensity: 0.55, fog: new FogExp2(0x05070f, 0.035) },
+    envLights: [[-2.25, 2.1, -1, 0xffa64a, 6], [2.25, 2.1, -1, 0xffa64a, 6], [0, 1.6, 6, 0x9ec4ff, 8], [0, 8, 0, 0x2a3450, 2]],
     react: () => (flare = 1),
     update(dt, t) {
       flare = Math.max(0, flare - dt * 0.8);
@@ -392,9 +478,11 @@ function theatre(): WorldSet {
         const y = h.y + Math.sin(t * 0.8 + i * 1.7) * 0.06;
         diyas.setMatrixAt(i, tmpM.compose(tmpP.set(h.x, y, h.z), tmpQ.identity(), tmpS.set(1, 1, 1)));
         fp.setXYZ(diyaFlameStart + i, h.x, y + 0.05, h.z);
+        flameHalo.geometry.attributes.position.setXYZ(diyaFlameStart + i, h.x, y + 0.05, h.z);
       });
       diyas.instanceMatrix.needsUpdate = true;
       fp.needsUpdate = true;
+      flameHalo.geometry.attributes.position.needsUpdate = true;
       flameMat.size = 0.13 * (1 + 0.08 * Math.sin(t * 9) + flare * 0.9);
       motePts.rotation.y = t * 0.01;
     },
@@ -479,6 +567,26 @@ function forest(): WorldSet {
   const glowSpots: number[] = [];
   for (const m of shrooms) glowSpots.push(m.p.x, m.s * 0.8, m.p.z);
   root.add(glowPoints(glowSpots, 0xff8a50, 0.35, 0.4));
+  // Giant mushrooms right beside the player, with glowing gills underneath.
+  const gillMat = new MeshBasicMaterial({ color: 0xffb46a });
+  const giantCap = new MeshStandardMaterial({ color: 0xe0846a, roughness: 0.5, emissive: new Color(0xff6a3a), emissiveIntensity: 0.5 });
+  for (const [x, z, sc] of [[-1.9, -0.2, 1.1], [2.1, 0.4, 1.3], [-2.6, 1.8, 0.9], [2.4, 2.6, 0.8]] as const) {
+    const stem = new Mesh(new CylinderGeometry(0.1, 0.16, 1, 14), stemMat);
+    stem.scale.setScalar(sc);
+    stem.position.set(x, 0.5 * sc, z);
+    const cap = new Mesh(new SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), giantCap);
+    cap.scale.set(sc, sc * 0.55, sc);
+    cap.position.set(x, 0.95 * sc, z);
+    const gills = new Mesh(new CylinderGeometry(0.53, 0.18, 0.06, 24), gillMat);
+    gills.scale.setScalar(sc);
+    gills.position.set(x, 0.93 * sc, z);
+    root.add(stem, cap, gills);
+  }
+  root.add(lamp(0xff8a4a, 3, 4, -1.9, 0.9, -0.2), lamp(0xff8a4a, 3, 4, 2.1, 1.0, 0.4));
+  // Moonbeams slanting down through the canopy.
+  for (const [x, z] of [[-2.5, 3], [3, 5.5], [-6, -2.5]]) {
+    root.add(lightShaft(new Vector3(x + 1.5, 14, z - 1), new Vector3(x, 0, z), 0.3, 1.2, 0x8ad8ff, 0.08));
+  }
 
   // A dark tunnel mouth into the hillside (the underground secret).
   const rock = baked(new MeshStandardMaterial({ map: noiseTex([50, 48, 44], 0.5, 51), roughness: 1 }), 0.45);
@@ -491,7 +599,7 @@ function forest(): WorldSet {
   root.add(arch, hole);
 
   // Fireflies: drift on their own, but gather toward the player's hands.
-  const count = 150;
+  const count = 230;
   const fly: number[] = [];
   const home: Vector3[] = [];
   for (let k = 0; k < count; k++) {
@@ -499,7 +607,7 @@ function forest(): WorldSet {
     home.push(v);
     fly.push(v.x, v.y, v.z);
   }
-  const flies = glowPoints(fly, 0x8ff8ff, 0.07);
+  const flies = glowPoints(fly, 0x8ff8ff, 0.09);
   root.add(flies);
   const pos = flies.geometry.attributes.position;
   let pulse = 0;
@@ -507,6 +615,7 @@ function forest(): WorldSet {
   return {
     root,
     look: { wallTint: 0xb4c4a4, hemiSky: 0x2a6a80, hemiGround: 0x0a140a, hemiIntensity: 0.65, fog: new FogExp2(0x061418, 0.045) },
+    envLights: [[0, 14, 0, 0x8ad8ff, 3], [-2, 1, 0, 0xff8a4a, 4], [2, 1, 1, 0xff8a4a, 4]],
     react: () => (pulse = 1),
     update(dt, t, hands) {
       pulse = Math.max(0, pulse - dt * 0.7);
@@ -669,6 +778,8 @@ function castle(): WorldSet {
     for (const sx of [-1, 1]) torchFlames.push(sx * 3.1, 2.6, z);
   });
   const torches = glowPoints(torchFlames, 0xb07aff, 0.45, 0.9);
+  root.add(lamp(0xa070ff, 5, 7, -3.0, 2.6, 1.6), lamp(0xa070ff, 5, 7, 3.0, 2.6, 1.6), lamp(0xc89aff, 4, 9, 0, 4, 9));
+  for (const [x, z] of [[-3.4, 3], [3.4, 6]]) root.add(lightShaft(new Vector3(x, 9, z), new Vector3(x * 0.2, 0, z - 1.5), 0.3, 1.0, 0xb48cff, 0.1));
   root.add(torches);
   const sconces = new InstancedMesh(new ConeGeometry(0.1, 0.25, 6), new MeshStandardMaterial({ color: 0x222228, metalness: 0.8, roughness: 0.5 }), torchFlames.length / 3);
   placeAll(sconces, zs.flatMap((z) => [-1, 1].map((sx) => ({ p: new Vector3(sx * 3.12, 2.45, z), s: new Vector3(1, 1, 1), rz: Math.PI }))));
@@ -694,6 +805,7 @@ function castle(): WorldSet {
   return {
     root,
     look: { wallTint: 0xb8b0c8, hemiSky: 0x5a3a8a, hemiGround: 0x08060e, hemiIntensity: 0.6, fog: new FogExp2(0x0c0618, 0.05) },
+    envLights: [[-3, 2.6, 2, 0xa070ff, 6], [3, 2.6, 2, 0xa070ff, 6], [0, 4, 9, 0xc89aff, 5]],
     react: () => (flare = 1),
     update(dt, t) {
       flare = Math.max(0, flare - dt * 0.8);
@@ -716,7 +828,10 @@ function sky(): WorldSet {
   // A pale moon hanging over the islands.
   const moon = new Mesh(new SphereGeometry(5, 24, 16), new MeshBasicMaterial({ color: 0xece6ff, fog: false }));
   moon.position.set(-22, 22, -38);
-  root.add(moon, glowPoints([-22, 22, -38], 0xd8ccff, 30, 0.35));
+  const moonRing = new Mesh(new TorusGeometry(8, 0.25, 6, 64), new MeshBasicMaterial({ color: 0xf0e0ff, transparent: true, opacity: 0.5, fog: false }));
+  moonRing.position.copy(moon.position);
+  moonRing.rotation.set(1.2, 0.3, 0.4);
+  root.add(moon, moonRing, glowPoints([-22, 22, -38], 0xd8ccff, 30, 0.35));
 
   // The player's own island.
   const grass = baked(new MeshStandardMaterial({ color: 0x5a9a44, roughness: 1, flatShading: true }), 0.45);
@@ -759,6 +874,10 @@ function sky(): WorldSet {
   const rocks = new InstancedMesh(new ConeGeometry(0.95, 2.6, 9), rock, isl.length);
   const islandTrees = new InstancedMesh(new ConeGeometry(0.3, 0.9, 7), baked(new MeshStandardMaterial({ color: 0x3a7a44, flatShading: true }), 0.5), isl.length * 2);
   root.add(tops, rocks, islandTrees);
+  // Magic crystals and blossom trees scattered on the islands.
+  const crystals = new InstancedMesh(new OctahedronGeometry(0.25, 0), new MeshStandardMaterial({ color: 0x9ae8ff, emissive: 0x3ab0e0, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.1 }), 18);
+  const blossoms = new InstancedMesh(new IcosahedronGeometry(0.45, 1), new MeshStandardMaterial({ color: 0xe8a0d8, emissive: 0x6a3060, emissiveIntensity: 0.8, roughness: 0.9, flatShading: true }), 10);
+  root.add(crystals, blossoms);
 
   // A sky palace on the largest island, behind and to the right of the wall.
   const palace = new Group();
@@ -777,6 +896,10 @@ function sky(): WorldSet {
     cap.position.set(x, h * 2 + 0.4 + h * 0.6, z);
     palace.add(tw, cap);
   }
+  // Glowing windows in the palace towers.
+  const windows: number[] = [];
+  for (const [x, z, h, w] of towerSpots) for (let k = 0; k < 3; k++) windows.push(x + w * 0.9, 0.8 + (h * 2 * (k + 1)) / 4, z + w * 0.4);
+  palace.add(glowPoints(windows, 0x8af0ff, 0.5, 0.9));
   palace.position.set(9, 3.5, -16);
   palace.scale.setScalar(1.3);
   root.add(palace);
@@ -844,6 +967,7 @@ function sky(): WorldSet {
   return {
     root,
     look: { wallTint: 0xeee4d2, hemiSky: 0xffe2c8, hemiGround: 0x5a6aa0, hemiIntensity: 1.0, fog: new FogExp2(0xd8b8c8, 0.012) },
+    envLights: [[0, 20, -10, 0xffe2c8, 6], [-20, 5, -30, 0xffb080, 6], [20, 5, 20, 0x8aa0ff, 3]],
     react: () => (sparkle = 1),
     update(dt, t) {
       sparkle = Math.max(0, sparkle - dt * 0.6);
@@ -855,6 +979,17 @@ function sky(): WorldSet {
           islandTrees.setMatrixAt(i * 2 + k, tmpM.compose(tmpP.set(it.p.x + (k ? 0.4 : -0.3) * it.s, y + 0.55 * it.s, it.p.z + (k ? -0.2 : 0.3) * it.s), tmpQ.identity(), tmpS.set(it.s, it.s, it.s)));
         }
       });
+      isl.forEach((it, i) => {
+        const y = it.p.y + Math.sin(t * 0.3 + it.ph) * 0.25;
+        if (i < 9) {
+          for (let k = 0; k < 2; k++) {
+            crystals.setMatrixAt(i * 2 + k, tmpM.compose(tmpP.set(it.p.x + (k ? -0.5 : 0.2) * it.s, y + 0.35 * it.s, it.p.z + (k ? 0.4 : -0.5) * it.s), tmpQ.setFromAxisAngle(UP, t * 0.5 + i), tmpS.set(it.s * 0.8, it.s * (1.3 + k * 0.5), it.s * 0.8)));
+          }
+        }
+        if (i < 10) blossoms.setMatrixAt(i, tmpM.compose(tmpP.set(it.p.x - 0.1 * it.s, y + 1.05 * it.s, it.p.z + 0.25 * it.s), tmpQ.identity(), tmpS.set(it.s, it.s * 0.8, it.s)));
+      });
+      crystals.instanceMatrix.needsUpdate = true;
+      blossoms.instanceMatrix.needsUpdate = true;
       tops.instanceMatrix.needsUpdate = true;
       rocks.instanceMatrix.needsUpdate = true;
       islandTrees.instanceMatrix.needsUpdate = true;
@@ -905,6 +1040,21 @@ function realm(): WorldSet {
       ctx.stroke();
     }
   });
+  // Big stone slabs between the glowing cracks.
+  const crackCtx = (crack.image as HTMLCanvasElement).getContext?.('2d');
+  if (crackCtx) {
+    crackCtx.strokeStyle = 'rgba(0,0,0,0.75)';
+    crackCtx.lineWidth = 4;
+    for (let k = 0; k <= 2; k++) {
+      crackCtx.beginPath();
+      crackCtx.moveTo(k * 128, 0);
+      crackCtx.lineTo(k * 128 + (k % 2 ? 10 : -6), 256);
+      crackCtx.moveTo(0, k * 128);
+      crackCtx.lineTo(256, k * 128 + (k % 2 ? -8 : 6));
+      crackCtx.stroke();
+    }
+    crack.needsUpdate = true;
+  }
   crack.repeat.set(6, 6);
   const floor = new Mesh(new CylinderGeometry(20, 20, 0.2, 40), new MeshStandardMaterial({ map: crack, emissiveMap: crack, emissive: 0x5a2aa8, emissiveIntensity: 0.6, roughness: 0.5, metalness: 0.3 }));
   floor.position.y = -0.1;
@@ -957,6 +1107,23 @@ function realm(): WorldSet {
   giant.position.set(0, -2, -9);
   root.add(giant);
 
+  // Moonlight falling on the arena, and lightning in the distance.
+  root.add(lightShaft(new Vector3(3, 16, -20), new Vector3(0, 0, -1), 1.0, 3.0, 0x7ab8ff, 0.06));
+  root.add(lamp(0x7ab8ff, 6, 14, 2, 8, -6), lamp(0x9a5cff, 4, 8, 0, 1, 2));
+  const boltPts: Vector3[] = [];
+  let bx = -14;
+  let by = 22;
+  while (by > 4) {
+    boltPts.push(new Vector3(bx, by, -26));
+    bx += (r() - 0.5) * 3;
+    by -= 1.5 + r() * 1.5;
+  }
+  const bolt = new Mesh(new TubeGeometry(new CatmullRomCurve3(boltPts), 40, 0.12, 4, false), new MeshBasicMaterial({ color: 0xdfe8ff, fog: false }));
+  const boltGlow = glowPoints([-14, 14, -25], 0xa8c8ff, 24, 0.6);
+  bolt.visible = boltGlow.visible = false;
+  root.add(bolt, boltGlow);
+  let nextBolt = 3;
+
   // Dark energy rising.
   const motes: number[] = [];
   for (let k = 0; k < 140; k++) motes.push((r() - 0.5) * 18, r() * 10, (r() - 0.5) * 18);
@@ -968,6 +1135,7 @@ function realm(): WorldSet {
   return {
     root,
     look: { wallTint: 0xa8a2c2, hemiSky: 0x4a6aa0, hemiGround: 0x0a0614, hemiIntensity: 0.7, fog: new FogExp2(0x050814, 0.03) },
+    envLights: [[4, 12, -40, 0x7ab8ff, 8], [0, 9, -2, 0x9a5cff, 3]],
     react: () => (rage = 1),
     update(dt, t) {
       rage = Math.max(0, rage - dt * 0.5);
@@ -982,6 +1150,15 @@ function realm(): WorldSet {
       ringMat.opacity = 0.35 + 0.15 * Math.sin(t * 0.8) + rage * 0.4;
       (eyes.material as PointsMaterial).size = 1.4 * (1 + 0.15 * Math.sin(t * 2) + rage * 1.2);
       giant.position.y = -2 + Math.sin(t * 0.4) * 0.3;
+      // Lightning: a double flash every few seconds.
+      nextBolt -= dt;
+      const flashOn = nextBolt < 0 && (nextBolt > -0.08 || (nextBolt < -0.16 && nextBolt > -0.24));
+      bolt.visible = boltGlow.visible = flashOn;
+      if (nextBolt < -0.3) {
+        nextBolt = 3 + Math.random() * 4;
+        bolt.position.x = (Math.random() - 0.5) * 24;
+        boltGlow.position.x = bolt.position.x;
+      }
       for (let k = 0; k < mp.count; k++) {
         let y = mp.getY(k) + dt * 0.4;
         if (y > 10) y = 0;
@@ -1001,12 +1178,32 @@ export class Worlds {
   readonly root = new Group();
   current: WorldId | null = null;
   private readonly sets = new Map<WorldId, WorldSet>();
+  private pmrem: PMREMGenerator | undefined;
+
+  constructor(private readonly renderer?: WebGLRenderer) {}
+
+  /** A tiny scene of glowing spots → prefiltered reflection map (brass gleams, floors shine). */
+  private envFor(w: WorldSet): Texture | null {
+    if (!this.renderer || !w.envLights) return null;
+    this.pmrem ??= new PMREMGenerator(this.renderer);
+    const sc = new Scene();
+    sc.background = new Color(w.look.hemiGround).lerp(new Color(w.look.hemiSky), 0.35);
+    for (const [x, y, z, color, k] of w.envLights) {
+      const ball = new Mesh(new SphereGeometry(1.2, 12, 8), new MeshBasicMaterial({ color: new Color(color).multiplyScalar(k) }));
+      ball.position.set(x, y, z);
+      sc.add(ball);
+    }
+    const tex = this.pmrem.fromScene(sc, 0.04).texture;
+    sc.traverse((o) => (o as Mesh).geometry?.dispose());
+    return tex;
+  }
 
   /** Switch worlds (call while the screen is faded). Returns the new look. */
   set(id: WorldId): WorldLook {
     let w = this.sets.get(id);
     if (!w) {
       w = BUILDERS[id]();
+      w.look.env = this.envFor(w);
       this.sets.set(id, w);
       this.root.add(w.root);
     }
