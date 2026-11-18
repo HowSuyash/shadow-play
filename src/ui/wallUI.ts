@@ -353,13 +353,13 @@ export class Hint {
   constructor() {
     const make = (pose: PoseId) => {
       const m = new Mesh(
-        new PlaneGeometry(0.62, 0.62),
+        new PlaneGeometry(0.85, 0.85),
         new MeshBasicMaterial({ map: pictogramTexture(pose), transparent: true, depthWrite: false }),
       );
-      m.position.set(-0.95, STAGE.titleY - 0.3, STAGE.z + 0.002);
+      m.position.set(-0.85, STAGE.titleY - 0.25, STAGE.z + 0.002);
       this.root.add(m);
-      const cap = makeText(POSE_CAPTIONS[pose], 0.13, { size: 56 });
-      cap.position.set(-0.95, STAGE.titleY - 0.68, STAGE.z + 0.003);
+      const cap = makeText(POSE_CAPTIONS[pose], 0.24, { size: 56 });
+      cap.position.set(-0.85, STAGE.titleY - 0.72, STAGE.z + 0.003);
       this.root.add(cap);
       return [new Fader(m, 2), new Fader(cap, 2)] as const;
     };
