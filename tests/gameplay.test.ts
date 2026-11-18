@@ -192,3 +192,45 @@ describe('progress', () => {
     expect(p.takeNew()).toEqual([]);
   });
 });
+
+describe('Shadow Memory', async () => {
+  const { Memory } = await import('../src/modes/memory.js');
+  const hint = { show: () => {} } as unknown as Hint;
+  const step = (m: InstanceType<typeof Memory>, seconds: number) => {
+    for (let t = 0; t < seconds; t += 0.05) m.update(0.05, t);
+  };
+
+  it('shows the sequence, then listens; a correct run grows it by one', () => {
+    const m = new Memory(hint);
+    m.start();
+    expect(m.phase).toBe('show');
+    expect(m.seq).toHaveLength(3);
+    step(m, 6);
+    expect(m.listening).toBe(true);
+    for (const p of [...m.seq]) expect(m.onPose(p)).toBe(true);
+    expect(m.best).toBe(3);
+    step(m, 2.5);
+    expect(m.seq).toHaveLength(4);
+    expect(m.phase).toBe('show');
+  });
+
+  it('a wrong shape costs a life and replays; three mistakes end the game', () => {
+    const m = new Memory(hint);
+    m.start();
+    for (let k = 0; k < 3; k++) {
+      step(m, 7);
+      expect(m.listening).toBe(true);
+      const wrong = (['dog', 'bird', 'rabbit', 'snake'] as const).find((p) => p !== m.seq[0])!;
+      expect(m.onPose(wrong)).toBe(false);
+    }
+    expect(m.lives).toBe(0);
+    expect(m.phase).toBe('done');
+  });
+
+  it('ignores shapes while the sequence is being shown', () => {
+    const m = new Memory(hint);
+    m.start();
+    expect(m.onPose(m.seq[0])).toBe(false);
+    expect(m.lives).toBe(3);
+  });
+});

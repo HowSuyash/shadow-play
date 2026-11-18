@@ -15,6 +15,8 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 | Main menu, pause menu (Resume / Restart / Recenter / Leave), gallery | ✅ | Headless playthrough (keyboard stand-ins); emulator for the pinch buttons |
 | Shadow Duel (Gesture Challenge), solo and versus | ✅ | Unit tests (host validation, first hit, five rounds); headless solo match; **networked 5-round match between two browsers over the real relays**: identical creatures dealt, wrong claims rejected, scores matched on both sides (2–3), both finished |
 | Online co-op: room code, partner hand shadows, host-authoritative sync, duet rule | ✅ connection and sync | Two isolated headless browsers over the real public relays: connect, start, summon, chapter change and pause all stay in sync |
+| Shadow Memory (solo, per headset) | ✅ | Unit tests (grow on success, lives, replay, game over); headless run |
+| Controllers detected → "put your controllers down" notice | ✅ | Emulator in controller mode |
 | Progress, stars, achievements | ✅ | Unit tests; gallery shows them |
 | Transformation particles, dust, partner glow avatar | ✅ | Screenshots; 60 fps (display cap) on an integrated AMD GPU at 1000×620 |
 | Deploy: GitHub Pages via Actions (typecheck → tests → build), Vercel config | ✅ | Live at https://howsuyash.github.io/shadow-play/ |
@@ -29,7 +31,7 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 
 - **No dedicated game server.** Co-op is serverless peer-to-peer with host authority and host-side validation of duel claims. A Colyseus/Socket.IO server would need paid hosting and credentials, and GitHub Pages can't run one. Moving to a server later only means replacing `src/net/coop.ts` with the same `send` / `onEvent` interface.
 - **Room codes are 4 digits** (with `?room=` links), not 6 characters, so they can be typed on a big pinch keypad in VR.
-- **Of the competitive and party ideas, only Shadow Duel's Gesture Challenge is built.** Not built: Shadow Race, Battle, Memory, Soccer, Survival, and the Party mode.
+- **Of the competitive and party ideas, Gesture Challenge (duel, networked) and Shadow Memory (solo) are built.** Not built: Shadow Race, Battle, Soccer, Survival, and the Party mode.
 - **No separate lobby "ready" step:** in co-op the game starts when either player chooses Story or Duel.
 - **No settings screen** (audio and effects levels). Recenter is in the pause menu.
 - **Gesture calibration is via tunable thresholds** (`POSE_CONFIG`), not an in-game calibration flow.
@@ -38,16 +40,16 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 ## Test results
 
 ```
-npm test   →   Test Files 2 passed · Tests 38 passed
+npm test   →   Test Files 2 passed · Tests 41 passed
 npx tsc --noEmit  →  clean
 npm run build     →  ok
 ```
 
 - `tests/poseDetector.test.ts`: classification on real joints, false positives, features, hold timer, detector timing.
-- `tests/gameplay.test.ts`: every chapter branch, wrong creatures, chapter reset, boss solo and co-op, duel validation and flow, progress.
+- `tests/gameplay.test.ts`: every chapter branch, wrong creatures, chapter reset, boss solo and co-op, duel validation and flow, Shadow Memory, progress.
 
 ## Known issues / ideas
 
 - The thief and kitten only appear in the chapters where the story puts them, so the gallery covers the four summonable creatures only.
 - Hint timings are per chapter (`hintDelay`); tune them after playtests.
-- Possible additions: Shadow Memory duel, a settings panel, an in-VR "ready" step for co-op, a TURN relay for strict networks.
+- Possible additions: a versus mode for Shadow Memory, a settings panel, an in-VR "ready" step for co-op, a TURN relay for strict networks.

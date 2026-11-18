@@ -565,13 +565,14 @@ export class PauseMenu extends PinchMenu<PauseChoice> {
   }
 }
 
-export type MainChoice = 'story' | 'duel' | 'gallery';
+export type MainChoice = 'story' | 'duel' | 'memory' | 'gallery';
 
 export class MainMenu extends PinchMenu<MainChoice> {
   constructor() {
     super('pinch to choose · or hold an open palm to begin', [
       { id: 'story', label: 'Story' },
       { id: 'duel', label: 'Duel' },
+      { id: 'memory', label: 'Memory' },
       { id: 'gallery', label: 'Gallery' },
     ]);
   }

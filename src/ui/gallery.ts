@@ -68,7 +68,7 @@ export class Gallery {
       .map((n) => `${n} ${'★'.repeat(d.stars[n] ?? 0)}${'☆'.repeat(3 - (d.stars[n] ?? 0))}`)
       .join('   ');
     const best = d.bestRun === null ? '—' : `${Math.floor(d.bestRun / 60)}:${String(Math.round(d.bestRun % 60)).padStart(2, '0')}`;
-    add(makeText([stars, `best story ${best}  ·  duels won ${d.duelWins} / ${d.duelPlayed}`], 0.12, { size: 50 }), 0, STAGE.titleY + 0.03);
+    add(makeText([stars, `best story ${best}  ·  duels won ${d.duelWins} / ${d.duelPlayed}  ·  memory ${d.memoryBest ?? 0}`], 0.12, { size: 50 }), 0, STAGE.titleY + 0.03);
     const earned = Object.entries(ACHIEVEMENTS)
       .map(([id, a]) => (d.achievements.includes(id) ? `✦ ${a.title}` : '· ? ·'))
       .join('   ');

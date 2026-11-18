@@ -44,7 +44,8 @@ The main menu floats about 36 cm in front of you as big round buttons. **Pinch**
 
 - **Story:** the five chapters above.
 - **Shadow Duel (Gesture Challenge):** a creature appears, and the first to form its shadow wins the round; best of five. Solo, you race the clock. With a partner, you race each other, with a scoreboard, a winner screen, rematch, and the match history for this session.
-- **Creature Gallery:** all four creatures alive on the wall (still-locked ones are dimmed), what each can do and how to make it, chapter stars (★★★ = no hint and under 40 s), your best story time, duel record and 8 achievements. Saved on the device.
+- **Shadow Memory:** the wall shows a sequence of creatures, each with its hand shape and its own note. Repeat it with your hands. It starts at 3, grows by one each time you succeed, and three mistakes end the game. Played on your own headset, even in a co-op room.
+- **Creature Gallery:** all four creatures alive on the wall (still-locked ones are dimmed), what each can do and how to make it, chapter stars (★★★ = no hint and under 40 s), your best story time, duel record, best Memory length and 9 achievements. Saved on the device.
 - **Play together (online co-op):** see below.
 
 ### Hands-only controls
@@ -76,7 +77,7 @@ Requirements: Node.js 20.19+ (22 or 24 recommended).
 ```bash
 npm install
 npm run dev        # https://localhost:8081  (HTTPS only; accept the local certificate)
-npm test           # 38 automated tests
+npm test           # 41 automated tests
 npm run build      # static site in dist/
 ```
 
@@ -92,7 +93,7 @@ To try it on a Quest, open the network URL that `npx @iwsdk/cli dev status` prin
 | Key | Action |
 |---|---|
 | `Enter` | Start the story / rematch |
-| `G` / `V` | Open the Gallery / a Duel from the menu |
+| `G` / `V` / `M` | Open the Gallery / a Duel / Shadow Memory from the menu |
 | `1` `2` `3` `4` | Force Dog / Bird / Rabbit / Snake (summon, or duel answer) |
 | `P` | Pause / resume (`R` restarts the chapter, `Esc` leaves) |
 | `D` or `` ` `` | Debug overlay: live per-finger curl, palm normals, every pose and gesture confidence, the hold timer |
@@ -142,11 +143,12 @@ src/
   game/progress.ts        stars, unlocks, best times, achievements (localStorage)
   game/shapes.ts          2D silhouette toolkit + coroutine cutscene scripting
   modes/duel.ts           Shadow Duel (Gesture Challenge), host-validated
+  modes/memory.ts         Shadow Memory (repeat the sequence)
   net/coop.ts             serverless WebRTC co-op
   effects/particles.ts, glowHands.ts   sparks + dust, partner avatar
   ui/wallUI.ts            wall text, hold ring, hints, fragments bar, pinch menus
   ui/gallery.ts, lobby.ts, debugOverlay.ts
-tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, progress
+tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, memory, progress
 ```
 
 See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for what's done, what's not, and test results.

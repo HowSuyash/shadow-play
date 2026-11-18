@@ -14,6 +14,8 @@ export interface ProgressData {
   bestRun: number | null;
   duelWins: number;
   duelPlayed: number;
+  /** Longest Shadow Memory sequence completed. */
+  memoryBest: number;
   achievements: string[];
 }
 
@@ -26,12 +28,13 @@ export const ACHIEVEMENTS: Record<string, { title: string; text: string }> = {
   swift: { title: 'Swift Hands', text: 'Finish the story in under 4 minutes.' },
   duelist: { title: 'Duelist', text: 'Win a Shadow Duel.' },
   flawless: { title: 'Flawless', text: 'Earn three stars on every chapter.' },
+  memory: { title: 'Long Memory', text: 'Remember six shadows in a row.' },
 };
 
 const KEY = 'shadow-play-progress-v1';
 
 function blank(): ProgressData {
-  return { unlocked: [], stars: {}, bestRun: null, duelWins: 0, duelPlayed: 0, achievements: [] };
+  return { unlocked: [], stars: {}, bestRun: null, duelWins: 0, duelPlayed: 0, memoryBest: 0, achievements: [] };
 }
 
 export class Progress {
@@ -93,6 +96,12 @@ export class Progress {
       this.data.duelWins++;
       this.award('duelist');
     }
+    this.save();
+  }
+
+  recordMemory(length: number): void {
+    this.data.memoryBest = Math.max(this.data.memoryBest ?? 0, length);
+    if (length >= 6) this.award('memory');
     this.save();
   }
 

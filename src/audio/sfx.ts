@@ -228,6 +228,14 @@ export class Sfx {
     o.stop(t + 0.55);
   }
 
+  /** A musical note per creature (Shadow Memory), pentatonic so any order sounds good. */
+  note(i: number): void {
+    if (!this.ctx) return;
+    const f = [392, 440, 523.25, 587.33, 659.25][i % 5];
+    this.tone(f, this.now, 0.6, 'triangle', 0.15);
+    this.tone(f * 2, this.now, 0.35, 'sine', 0.05);
+  }
+
   /** Two quick bird chirps. */
   chirp(): void {
     if (!this.ctx) return;

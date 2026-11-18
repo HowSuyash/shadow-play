@@ -5,6 +5,7 @@ import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { ACHIEVEMENTS, Progress } from './game/progress.js';
 import { Duel, type DuelEvent } from './modes/duel.js';
+import { Memory } from './modes/memory.js';
 import { Gestures } from './hands/gestures.js';
 import { HandData, HandTracker } from './hands/handData.js';
 import { POSE_THRESHOLD, POSES, PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
@@ -19,7 +20,7 @@ import { Gallery } from './ui/gallery.js';
 import { Lobby } from './ui/lobby.js';
 import { Fader, Flash, FragmentBar, Hint, HoldRing, MainMenu, makeText, PauseMenu, PinchMenu, projectToWall } from './ui/wallUI.js';
 
-type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel';
+type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel' | 'memory';
 
 /** Seconds each alternative answer's hint stays up before switching. */
 const HINT_CYCLE = 4;
@@ -57,6 +58,12 @@ class Game {
     { id: 'menu', label: 'Menu' },
   ]);
   readonly gallery = new Gallery();
+  readonly memory: Memory;
+  readonly memoryMenu = new PinchMenu<'again' | 'menu'>('Shadow Memory', [
+    { id: 'again', label: 'Again' },
+    { id: 'menu', label: 'Menu' },
+  ]);
+  private memoryRecorded = false;
   readonly progress = new Progress();
   readonly particles = new Particles();
   private partnerGlow: GlowHands | undefined;
@@ -117,7 +124,9 @@ class Game {
     this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
     this.room.root.add(this.particles.points);
-    this.wall.add(this.gallery.root, this.duel.root);
+    this.memory = new Memory(this.hint);
+    this.room.root.add(this.memoryMenu.root);
+    this.wall.add(this.gallery.root, this.duel.root, this.memory.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
     const title = makeText(['SHADOW PLAY'], 0.34, { size: 120, letterSpacing: 18, weight: '700' });
@@ -173,7 +182,8 @@ class Game {
     const partnerInVR = this.partnerLeft.tracked || this.partnerRight.tracked;
     const partnerHolding = !this.duetMode || !partnerInVR || this.coop!.partnerCharging !== null;
     const duelOpen = this.phase === 'duel' && this.duel.open && this.curtainT < 0;
-    const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen);
+    const memoryOpen = this.phase === 'memory' && this.memory.listening && this.curtainT < 0;
+    const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen || memoryOpen);
 
     if (this.coop) {
       this.coop.update(dt, this.hands.left, this.hands.right, this.localCharging(), pose.progress);
@@ -184,6 +194,7 @@ class Game {
     if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
     else if (this.phase === 'gallery') this.updateGallery(g.start);
     else if (this.phase === 'duel') this.updateDuel(pose);
+    else if (this.phase === 'memory') this.updateMemory(pose);
     else if (inLevel && this.paused) this.updatePaused(dt);
     else if (inLevel) this.updateLevel(dt, pose, levelReady, g.pause);
 
@@ -195,6 +206,8 @@ class Game {
     if (this.phase !== 'title' && this.phase !== 'end') this.mainMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'gallery') this.backMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'duel') this.duelMenu.update(dt, Game.NONE, Game.NONE);
+    if (this.phase !== 'memory') this.memoryMenu.update(dt, Game.NONE, Game.NONE);
+    this.memory.update(dt, time);
     this.gallery.update(dt, time);
     this.duel.update(dt, time);
     // Sparks gather into the ring while a shape is held.
@@ -233,8 +246,10 @@ class Game {
     // Desktop-only shortcuts.
     if (this.debugKey('KeyG')) choice = 'gallery';
     if (this.debugKey('KeyV')) choice = 'duel';
+    if (this.debugKey('KeyM')) choice = 'memory';
     if (choice === 'story') this.request({ t: 'start' });
     else if (choice === 'duel') this.request({ t: 'mode', mode: 'duel' });
+    else if (choice === 'memory') this.enterMemory();
     else if (choice === 'gallery') this.enterGallery();
   }
 
@@ -265,7 +280,9 @@ class Game {
     this.finale.hide();
     this.gallery.hide();
     this.duel.stop();
+    this.memory.stop();
     this.duelMenu.setVisible(false);
+    this.memoryMenu.setVisible(false);
     this.backMenu.setVisible(false);
     this.fragments.setVisible(false);
     this.hint.show(null);
@@ -380,6 +397,50 @@ class Game {
         (this.handsNotice.mesh.material as MeshBasicMaterial).map?.dispose();
         this.handsNotice = undefined;
       }
+    }
+  }
+
+  /** Shadow Memory is played locally (each player has their own sequence). */
+  private enterMemory(): void {
+    sfx.click();
+    this.runCurtain(() => {
+      for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
+      this.finale.hide();
+      this.mainMenu.setVisible(false);
+      this.memoryMenu.setVisible(false);
+      this.fragments.setVisible(false);
+      this.phase = 'memory';
+      this.memoryRecorded = false;
+      this.memory.start();
+    });
+  }
+
+  private updateMemory(pose: PoseResult): void {
+    const m = this.memory;
+    projectToWall(pose.anchor, this.room.lightPos, this.wallPoint);
+    this.ring.set(m.listening ? pose.progress : 0, this.wallPoint);
+    sfx.setChime(m.listening ? pose.progress : 0);
+    let hit = pose.triggered;
+    // Desktop-only: number keys stand in for poses.
+    if (this.debugKey('Digit1')) hit = 'dog';
+    if (this.debugKey('Digit2')) hit = 'bird';
+    if (this.debugKey('Digit3')) hit = 'rabbit';
+    if (this.debugKey('Digit4')) hit = 'snake';
+    if (hit && m.listening) {
+      if (m.onPose(hit)) this.particles.burst(this.wallPoint, 40, 0.4);
+      this.poses.reset();
+    }
+    if (m.phase === 'done') {
+      if (!this.memoryRecorded) {
+        this.memoryRecorded = true;
+        this.progress.recordMemory(m.best);
+        this.memoryMenu.setVisible(true);
+      }
+      let choice = this.memoryMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
+      if (this.debugKey('Enter')) choice = 'again';
+      if (this.debugKey('Escape')) choice = 'menu';
+      if (choice === 'again') this.enterMemory();
+      else if (choice === 'menu') this.runCurtain(() => this.enterTitle());
     }
   }
 
@@ -779,6 +840,7 @@ class Game {
   }
 
   private describe(): string {
+    if (this.phase === 'memory') return `memory ${this.memory.phase} ${this.memory.index}/${this.memory.seq.length} lives ${this.memory.lives} best ${this.memory.best} seq ${this.memory.seq.join(',')}`;
     if (this.phase === 'duel') return `duel round ${this.duel.round + 1} ${this.duel.open ? 'open' : ''}${this.duel.done ? ' DONE' : ''} score ${this.duel.score.host}-${this.duel.score.guest}`;
     if (this.phase !== 'level' || !this.level) return this.phase;
     const l = this.level;
