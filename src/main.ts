@@ -3,7 +3,7 @@ import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
 import { Gestures } from './hands/gestures.js';
 import { HandTracker } from './hands/handData.js';
-import { PoseDetector } from './hands/poseDetector.js';
+import { PoseDetector, type PoseResult } from './hands/poseDetector.js';
 import { HandShadowCasters } from './hands/shadows.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
@@ -52,7 +52,9 @@ class Game {
     this.poses.updateFeatures();
 
     const g = this.gestures.update(dt, this.phase === 'title', false);
+    const pose = this.poses.update(dt, this.phase === 'level');
     if (this.phase === 'title') this.updateTitle(g.start);
+    else if (this.phase === 'level') this.updateLevel(pose);
 
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -71,6 +73,22 @@ class Game {
     this.ring.set(p, this.wallPoint);
     sfx.setChime(p);
     if (startFired || this.debugKey('Enter')) this.startGame();
+  }
+
+  private updateLevel(pose: PoseResult): void {
+    // Desktop-only: number keys force a creature so the full flow is testable.
+    if (this.debugKey('Digit1')) pose.triggered = 'dog';
+    if (this.debugKey('Digit2')) pose.triggered = 'bird';
+    if (this.debugKey('Digit3')) pose.triggered = 'rabbit';
+    projectToWall(pose.anchor, this.room.lightPos, this.wallPoint);
+    this.ring.set(pose.progress, this.wallPoint);
+    sfx.setChime(pose.progress);
+    if (pose.triggered) {
+      sfx.setChime(0);
+      sfx.success();
+      this.flash.fire(this.wallPoint);
+      console.info(`[shadow-play] pose triggered: ${pose.triggered}`);
+    }
   }
 
   startGame(): void {
