@@ -50,3 +50,6 @@ pids/
 .codex/
 .cursor/
 CLAUDE.md
+
+# Demo video renders
+demo-video/
