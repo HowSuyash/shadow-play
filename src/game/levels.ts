@@ -64,6 +64,8 @@ export abstract class Level {
   outcome: PoseId | null = null;
   /** Co-op: both players made the same shape, so the creature is a giant. */
   protected duet = false;
+  /** Visual effects hook, injected by the game (sparks for seals, finales…). */
+  fx: { burst(at: Vector3, count?: number, spread?: number): void } | undefined;
 
   /** One line for the ending's "your story" recap. */
   abstract storyLine(): string;

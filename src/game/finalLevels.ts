@@ -326,6 +326,7 @@ export class ShadowEaterLevel extends Level {
   private *shatter(i: number): Script {
     const s = this.seals[i];
     sfx.sealBreak();
+    this.fx?.burst(new Vector3(s.position.x, s.position.y, this.root.position.z), 60, 0.6);
     const mat = s.material as MeshBasicMaterial;
     yield* tween(0.5, (k) => {
       s.scale.setScalar(1 + k * 2.5);
@@ -421,6 +422,7 @@ export class ShadowEaterLevel extends Level {
       this.light.position.set(lerp(from.x, to.x, ease.inOut(k)), lerp(from.y, to.y, k) + Math.sin(k * Math.PI) * 0.25, 0.004);
     });
     sfx.roar();
+    this.fx?.burst(new Vector3(to.x, to.y, this.root.position.z), 160, 1.1);
     yield* together(
       tween(2.0, (k) => (this.boss.dissolve = ease.inOut(k))),
       tween(2.0, (k) => this.light.scale.set(1 + k * 4, 1 + k * 4, 1)),

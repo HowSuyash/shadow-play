@@ -10,6 +10,8 @@ import { HandData, HandTracker } from './hands/handData.js';
 import { POSE_THRESHOLD, POSES, PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
 import { HandShadowCasters } from './hands/shadows.js';
 import { Coop, type CoopEvent, type CoopRole } from './net/coop.js';
+import { GlowHands, PLAYER_COLORS } from './effects/glowHands.js';
+import { Particles } from './effects/particles.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
@@ -56,6 +58,8 @@ class Game {
   ]);
   readonly gallery = new Gallery();
   readonly progress = new Progress();
+  readonly particles = new Particles();
+  private partnerGlow: GlowHands | undefined;
   readonly duel: Duel;
   private duelRecorded = false;
   /** Set by the system: re-anchor the room to the player's head next frame. */
@@ -109,6 +113,7 @@ class Game {
   constructor(private readonly world: World) {
     this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
+    this.room.root.add(this.particles.points);
     this.wall.add(this.gallery.root, this.duel.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
@@ -136,6 +141,7 @@ class Game {
       const m = makeText([`${l.numeral} · ${l.title}`], 0.2, { size: 80, letterSpacing: 4 });
       m.position.set(0, STAGE.titleY, STAGE.z);
       this.wall.add(m, l.root);
+      l.fx = this.particles;
       return new Fader(m, 1.5);
     });
     this.levelSubtitles = this.levels.map((l) => {
@@ -188,6 +194,11 @@ class Game {
     if (this.phase !== 'duel') this.duelMenu.update(dt, Game.NONE, Game.NONE);
     this.gallery.update(dt, time);
     this.duel.update(dt, time);
+    // Sparks gather into the ring while a shape is held.
+    const rp = this.ring.progress;
+    if (rp > 0.03 && Math.random() < 0.3 + rp) this.particles.gather(this.ring.target, 0.32, 1);
+    this.particles.update(dt);
+    this.partnerGlow?.update([this.partnerLeft, this.partnerRight], time);
     this.updateToast(dt);
     this.updateCurtain(dt);
     this.room.update(dt);
@@ -316,6 +327,7 @@ class Game {
     if (this.debugKey('Digit4')) hit = 'snake';
     if (hit && d.open) {
       this.progress.unlock(hit);
+      if (hit === d.targets[d.round]) this.particles.burst(this.wallPoint, 60);
       d.localHit(hit);
     }
     if (d.done) {
@@ -416,6 +428,12 @@ class Game {
     this.coop?.leave();
     this.partnerCasters.root.position.x = role === 'host' ? PARTNER_OFFSET : -PARTNER_OFFSET;
     const coop = new Coop(role, code, this.partnerLeft, this.partnerRight);
+    // The partner appears as a glowing puppeteer in their player colour.
+    this.partnerGlow?.root.removeFromParent();
+    const partnerIsHost = role === 'guest';
+    this.partnerGlow = new GlowHands(partnerIsHost ? PLAYER_COLORS.host : PLAYER_COLORS.guest, partnerIsHost ? 'Player 1' : 'Player 2');
+    this.partnerGlow.root.position.x = this.partnerCasters.root.position.x;
+    this.room.root.add(this.partnerGlow.root);
     // Host: the guest asked for something, so decide and broadcast. Guest: the host decided.
     coop.onEvent = (e) => this.apply(e, coop.isHost);
     coop.onStatus = (text) => this.setWallStatus(`co-op · room ${code} · ${text}`);
@@ -451,6 +469,7 @@ class Game {
     sfx.setChime(0);
     sfx.success();
     this.flash.fire(this.wallPoint);
+    this.particles.burst(this.wallPoint, 60);
     this.ring.set(0);
     for (const t of [...this.titleTexts, ...this.endTexts]) t.show(false);
     this.mainMenu.setVisible(false);
@@ -633,6 +652,7 @@ class Game {
       this.progress.recordChapter(level.numeral, Progress.starsFor(this.chapterTime, this.chapterHinted ? 1 : 0));
       if (level instanceof ThiefLevel && level.outcome === 'rabbit') this.progress.award('kind_heart');
       this.fragments.collect(this.levelIndex, this.wallPoint.set(0, STAGE.groundY + 0.5, STAGE.z));
+      this.particles.burst(this.wallPoint, 50, 0.4);
     }
     if (this.solvedTimer >= 0 && this.curtainT < 0) {
       this.solvedTimer += dt;
@@ -654,6 +674,8 @@ class Game {
     this.progress.unlock(pose);
     if (pose2) this.progress.unlock(pose2);
     this.flash.fire(spawn);
+    // The signature moment: the shadow bursts into living sparks.
+    this.particles.burst(spawn, duet ? 150 : 80, duet ? 0.8 : 0.5);
     this.ring.set(0);
     this.hint.show(null);
     this.hintShown = false;

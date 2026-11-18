@@ -157,7 +157,10 @@ export class HoldRing {
   private readonly mat: ShaderMaterial;
   private opacity = 0;
   private targetOpacity = 0;
-  private readonly target = new Vector3();
+  /** Where the ring is heading on the wall (room space). */
+  readonly target = new Vector3();
+  /** Current fill while shown, 0 when hidden. */
+  progress = 0;
 
   constructor() {
     this.mat = new ShaderMaterial({
@@ -181,6 +184,7 @@ export class HoldRing {
   /** @param progress 0..1, or ≤0 to fade out. `at` is a wall position. */
   set(progress: number, at?: Vector3): void {
     this.targetOpacity = progress > 0.02 ? 1 : 0;
+    this.progress = progress > 0.02 ? progress : 0;
     if (progress > 0.02) this.mat.uniforms.uProgress.value = progress;
     if (at) this.target.copy(at);
   }
