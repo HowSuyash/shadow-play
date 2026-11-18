@@ -228,6 +228,30 @@ export class Sfx {
     o.stop(t + 0.55);
   }
 
+  /** Two quick bird chirps. */
+  chirp(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 2; i++) {
+      const t = this.now + i * 0.13;
+      const o = this.ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(2600, t);
+      o.frequency.exponentialRampToValueAtTime(4200, t + 0.06);
+      const g = this.ctx.createGain();
+      this.env(g, t, 0.07, 0.005, 0.07);
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 0.1);
+    }
+  }
+
+  /** A warm, gentle bell — friendship. */
+  charm(): void {
+    if (!this.ctx) return;
+    const t = this.now;
+    [659.25, 830.61, 987.77, 1318.5].forEach((f, i) => this.tone(f, t + i * 0.12, 1.4, 'sine', 0.08));
+  }
+
   /** Soft puff when the wrong creature appears and fades. */
   fizzle(): void {
     if (!this.ctx) return;

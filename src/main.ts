@@ -15,6 +15,8 @@ type Phase = 'title' | 'level' | 'end';
 
 /** Seconds without success before the hand-shape hint appears. */
 const HINT_DELAY = 8;
+/** Seconds each alternative answer's hint stays up before switching. */
+const HINT_CYCLE = 4;
 /** Pause after a level is solved before the curtain falls. */
 const SOLVED_LINGER = 1.6;
 /** Half-length of the dim → swap → brighten curtain between scenes. */
@@ -50,6 +52,8 @@ class Game {
   /** Time in the current level spent waiting for the player (excludes cutscenes). */
   private levelClock = 0;
   private hintShown = false;
+  private hintIndex = 0;
+  private hintCycle = 0;
   private solvedTimer = -1;
   /** Curtain: counts up while a scene change is in progress, -1 when idle. */
   private curtainT = -1;
@@ -254,11 +258,12 @@ class Game {
       this.flash.fire(this.wallPoint);
       this.ring.set(0);
       this.hint.show(null);
-      if (summoned !== level.pose) {
+      this.hintShown = false;
+      if (!level.summon(summoned, this.wallPoint)) {
         this.wrongCreatures++;
-        this.levelClock = HINT_DELAY; // show the right shape straight after
+        this.levelClock = HINT_DELAY; // show a right shape once it has faded
       }
-      level.summon(summoned, this.wallPoint);
+      return; // the cutscene owns this frame
     }
 
     if (ready) {
@@ -266,7 +271,18 @@ class Game {
       if (this.levelClock >= HINT_DELAY && !this.hintShown) {
         this.hintShown = true;
         this.hintsUsed++;
-        this.hint.show(level.pose, level.hintX);
+        this.hintCycle = 0;
+        this.hintIndex = 0;
+        this.hint.show(level.solutions[0], level.hintX);
+      }
+      // Each chapter has more than one answer: alternate between them.
+      if (this.hintShown) {
+        this.hintCycle += dt;
+        if (this.hintCycle > HINT_CYCLE) {
+          this.hintCycle = 0;
+          this.hintIndex = (this.hintIndex + 1) % level.solutions.length;
+          this.hint.show(level.solutions[this.hintIndex], level.hintX);
+        }
       }
     }
 
@@ -288,7 +304,9 @@ class Game {
     this.level?.exit();
     this.level = undefined;
     this.phase = 'end';
-    this.finale.show();
+    const thiefIsFriend = this.levels[0].outcome === 'rabbit';
+    this.finale.show(thiefIsFriend);
+    const story = this.levels.map((l) => l.storyLine());
     sfx.fanfare();
     const secs = Math.round(this.runTime);
     const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50);
@@ -297,17 +315,20 @@ class Game {
       f.mesh.removeFromParent();
       (f.mesh.material as MeshBasicMaterial).map?.dispose();
     }
-    const end = makeText(['The End'], 0.32, { size: 120, weight: '700', letterSpacing: 10 });
-    end.position.set(0, STAGE.titleY, STAGE.z);
-    const thanks = makeText(['thanks for playing'], 0.2, { size: 64, italic: true });
-    thanks.position.set(0, STAGE.titleY - 0.26, STAGE.z);
-    const stats = makeText([`time ${time}  ·  score ${score}`], 0.18, { size: 60 });
-    stats.position.set(0, STAGE.titleY - 0.47, STAGE.z);
+    const end = makeText(['The End'], 0.3, { size: 120, weight: '700', letterSpacing: 10 });
+    end.position.set(0, STAGE.titleY + 0.1, STAGE.z);
+    const thanks = makeText(['thanks for playing'], 0.15, { size: 64, italic: true });
+    thanks.position.set(0, STAGE.titleY - 0.12, STAGE.z);
+    // The plot the player's shadows wrote, one line per chapter.
+    const tale = makeText(story, 0.27, { size: 50, italic: true, color: '#ffe9c4' });
+    tale.position.set(0, STAGE.titleY - 0.38, STAGE.z);
+    const stats = makeText([`time ${time}  ·  score ${score}`], 0.15, { size: 60 });
+    stats.position.set(0, STAGE.titleY - 0.62, STAGE.z);
     const again = makeText(['hold an open palm to play again'], 0.16, { size: 52 });
     again.position.set(0, STAGE.groundY - 0.08, STAGE.z);
-    const meshes: Mesh[] = [end, thanks, stats, again];
+    const meshes: Mesh[] = [end, thanks, tale, stats, again];
     this.wall.add(...meshes);
-    this.endTexts = meshes.map((m, i) => new Fader(m, 1.2 - i * 0.2).show());
+    this.endTexts = meshes.map((m, i) => new Fader(m, 1.2 - i * 0.15).show());
   }
 
   /** Dim the candle, run `action` at the darkest point, then brighten again. */

@@ -1,10 +1,10 @@
-import { Group, Mesh, Vector3 } from '@iwsdk/core';
+import { Group, Mesh, MeshBasicMaterial, Vector3 } from '@iwsdk/core';
 import { sfx } from '../audio/sfx.js';
 import type { PoseId } from '../hands/poseDetector.js';
 import type { Room } from '../scene/room.js';
 import { STAGE } from '../scene/layout.js';
 import { Bird, Dog, Kitten, makeCandleProp, makeLantern, Rabbit, Thief, type Silhouette } from './creatures.js';
-import { capsule, circle, ease, ellipse, part, poly, ScriptRunner, shadowMaterial, tween, wait, type Script } from './shapes.js';
+import { capsule, circle, ease, ellipse, glow, part, poly, ScriptRunner, shadowMaterial, tween, wait, type Script } from './shapes.js';
 
 const GROUND = STAGE.groundY;
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
@@ -36,7 +36,11 @@ export function makeGround(from = STAGE.left - 2.2, to = STAGE.right + 2.2): Gro
 export abstract class Level {
   abstract readonly numeral: string;
   abstract readonly title: string;
-  abstract readonly pose: PoseId;
+  /**
+   * Shadows that solve this chapter. Each leads to a different consequence,
+   * so the player's choices write the story. The first is the classic one.
+   */
+  abstract readonly solutions: readonly PoseId[];
   /** Where the hand-shape hint sits on the stage (clear of this level's props). */
   readonly hintX: number = -0.85;
   readonly root = new Group();
@@ -44,6 +48,11 @@ export abstract class Level {
   protected readonly actors: Silhouette[] = [];
   protected readonly script = new ScriptRunner();
   solved = false;
+  /** Which solution the player chose, once summoned. */
+  outcome: PoseId | null = null;
+
+  /** One line for the ending's "your story" recap. */
+  abstract storyLine(): string;
 
   constructor(protected readonly room: Room) {
     this.root.position.z = STAGE.z;
@@ -57,6 +66,7 @@ export abstract class Level {
 
   enter(): void {
     this.solved = false;
+    this.outcome = null;
     this.script.stop();
     this.reset();
     this.root.visible = true;
@@ -67,8 +77,12 @@ export abstract class Level {
     this.root.visible = false;
   }
 
-  summon(pose: PoseId, spawn: Vector3): void {
-    this.script.start(pose === this.pose ? this.solve(spawn) : this.wrong(pose, spawn));
+  /** @returns true if this shadow solves the chapter. */
+  summon(pose: PoseId, spawn: Vector3): boolean {
+    const solves = this.solutions.includes(pose);
+    if (solves) this.outcome = pose;
+    this.script.start(solves ? this.solve(pose, spawn) : this.wrong(pose, spawn));
+    return solves;
   }
 
   update(dt: number, time: number): void {
@@ -78,7 +92,12 @@ export abstract class Level {
   }
 
   protected abstract reset(): void;
-  protected abstract solve(spawn: Vector3): Script;
+  protected abstract solve(pose: PoseId, spawn: Vector3): Script;
+
+  /** Where a walking creature may land (keeps it off chasms and out of walls). */
+  protected landX(x: number): number {
+    return x;
+  }
   /** Idle animation hook. */
   protected tick(_dt: number, _time: number): void {}
 
@@ -93,7 +112,7 @@ export abstract class Level {
   protected *emerge(c: Silhouette, spawn: Vector3, land = true): Script {
     c.root.visible = true;
     c.fade(1, true);
-    c.root.position.set(spawn.x, spawn.y - 0.12, 0.003);
+    c.root.position.set(land ? this.landX(spawn.x) : spawn.x, spawn.y - 0.12, 0.003);
     c.placed();
     c.grow = 0;
     yield* tween(0.55, (k) => (c.grow = Math.max(0.001, ease.backOut(k))));
@@ -109,6 +128,31 @@ export abstract class Level {
     if (Math.abs(x - x0) < 0.005) return;
     c.facing = x > x0 ? 1 : -1;
     yield* tween(Math.abs(x - x0) / speed, (k) => (c.root.position.x = lerp(x0, x, easing(k))));
+  }
+
+  /** Fly along a gentle arc to (x, y), facing the direction of travel. */
+  protected *flyTo(c: Silhouette, x: number, y: number, seconds: number): Script {
+    const p = c.root.position;
+    const x0 = p.x;
+    const y0 = p.y;
+    if (Math.abs(x - x0) > 0.02) c.facing = x > x0 ? 1 : -1;
+    yield* tween(seconds, (k) => {
+      const e = ease.inOut(k);
+      p.x = lerp(x0, x, e);
+      p.y = lerp(y0, y, e) + Math.sin(k * Math.PI) * 0.1;
+    });
+  }
+
+  /** A hop from the current spot to (x, y) along a parabola. */
+  protected *jumpTo(c: Silhouette, x: number, y: number, seconds: number, height = 0.15): Script {
+    const p = c.root.position;
+    const x0 = p.x;
+    const y0 = p.y;
+    if (Math.abs(x - x0) > 0.01) c.facing = x > x0 ? 1 : -1;
+    yield* tween(seconds, (k) => {
+      p.x = lerp(x0, x, k);
+      p.y = lerp(y0, y, k) + Math.sin(k * Math.PI) * height;
+    });
   }
 
   /** Wrong creature: it appears, looks around, shrugs, and fades away. */
@@ -137,22 +181,30 @@ export abstract class Level {
 export class ThiefLevel extends Level {
   readonly numeral = 'I';
   readonly title = 'The Thief';
-  readonly pose: PoseId = 'dog';
+  readonly solutions: readonly PoseId[] = ['dog', 'rabbit'];
 
   private readonly thief = new Thief();
   private readonly dog = new Dog();
+  private readonly rabbit = new Rabbit();
+  /** Warm glow that blooms between the rabbit and the thief when they make friends. */
+  private readonly heart = glow(0.3, 0);
   private readonly prop = makeCandleProp();
   private readonly standX = 0.3;
   private readonly idle = new ScriptRunner();
-  private readonly tmp = new Vector3();
   private glowBoost = 1;
 
   constructor(room: Room) {
     super(room);
     this.root.add(makeGround());
     this.prop.root.position.set(this.standX, GROUND, 0.001);
-    this.root.add(this.prop.root);
-    this.add(this.thief, this.dog);
+    this.root.add(this.prop.root, this.heart);
+    this.add(this.thief, this.dog, this.rabbit);
+  }
+
+  storyLine(): string {
+    return this.outcome === 'rabbit'
+      ? 'A rabbit turned a thief into a friend.'
+      : 'A dog chased the thief into the night.';
   }
 
   protected reset(): void {
@@ -167,8 +219,13 @@ export class ThiefLevel extends Level {
     this.thief.scared = false;
     this.thief.fade(1, true);
     this.thief.arm.rotation.z = 0;
+    this.thief.sneaking = true;
     this.dog.root.visible = false;
     this.dog.fade(0, true);
+    this.rabbit.root.visible = false;
+    this.rabbit.fade(0, true);
+    this.rabbit.hopping = false;
+    this.heart.visible = false;
     this.idle.start(this.thiefLoop());
   }
 
@@ -199,8 +256,67 @@ export class ThiefLevel extends Level {
     }
   }
 
-  protected *solve(spawn: Vector3): Script {
+  protected solve(pose: PoseId, spawn: Vector3): Script {
     this.idle.stop();
+    return pose === 'rabbit' ? this.befriend(spawn) : this.scareOff(spawn);
+  }
+
+  /** Put the candle back on its stand from wherever it is (smooth arc). */
+  private *returnCandle(seconds: number, arc: number): Script {
+    const candle = this.prop.candle;
+    if (candle.parent === this.prop.root) return;
+    this.root.attach(candle);
+    const from = candle.position.clone();
+    const rot = candle.rotation.z;
+    yield* tween(seconds, (k) => {
+      candle.position.set(
+        lerp(from.x, this.standX, k),
+        lerp(from.y, GROUND + 0.185, k) + Math.sin(k * Math.PI) * arc,
+        0.001,
+      );
+      candle.rotation.z = lerp(rot, 0, k);
+    });
+    this.prop.root.attach(candle);
+    candle.position.set(0, 0.185, 0);
+    candle.rotation.set(0, 0, 0);
+  }
+
+  /** Branch B: the rabbit hops up, the thief melts, hands the candle back, and waves. */
+  private *befriend(spawn: Vector3): Script {
+    const t = this.thief;
+    const r = this.rabbit;
+    yield* this.emerge(r, spawn);
+    r.hopping = true;
+    yield* this.walkTo(r, Math.min(t.root.position.x - 0.32, this.standX + 0.1), 0.5);
+    r.hopping = false;
+    r.facing = 1;
+    t.sneaking = false;
+    t.facing = -1;
+    // A warm glow blooms between them.
+    this.heart.position.set((r.root.position.x + t.root.position.x) / 2, GROUND + 0.55, 0.004);
+    this.heart.visible = true;
+    sfx.charm();
+    const heartMat = this.heart.material as MeshBasicMaterial;
+    yield* tween(1.2, (k) => {
+      heartMat.opacity = Math.sin(k * Math.PI) * 0.9;
+      this.heart.scale.setScalar(0.6 + k * 0.8);
+    });
+    this.heart.visible = false;
+    // He gently sets the candle back.
+    if (this.prop.candle.parent !== this.prop.root) {
+      yield* tween(0.5, (k) => (t.arm.rotation.z = lerp(0.2, -0.3, k)));
+      yield* this.returnCandle(0.9, 0.06);
+    }
+    // A friendly wave.
+    yield* tween(1.4, (k) => (t.arm.rotation.z = 0.5 + Math.sin(k * Math.PI * 4) * 0.35));
+    t.arm.rotation.z = 0;
+    yield* tween(0.8, (k) => (this.glowBoost = 1 + k * 0.7));
+    yield* wait(1.0);
+    this.solved = true;
+  }
+
+  /** Branch A: the dog barks, the thief jumps, flings the candle back and flees. */
+  private *scareOff(spawn: Vector3): Script {
     const t = this.thief;
     const d = this.dog;
     yield* this.emerge(d, spawn);
@@ -218,28 +334,8 @@ export class ThiefLevel extends Level {
     const y0 = t.root.position.y;
     yield* tween(0.35, (k) => (t.root.position.y = y0 + Math.sin(k * Math.PI) * 0.14));
     sfx.flee();
-    // The candle is flung back onto its stand.
-    const candle = this.prop.candle;
-    if (candle.parent !== this.prop.root) {
-      this.root.attach(candle);
-      const from = candle.position.clone();
-      const rot = candle.rotation.z;
-      this.tmp.set(this.standX, GROUND + 0.185, 0.001);
-      const to = this.tmp;
-      t.facing = 1;
-      const fleeFrom = t.root.position.x;
-      yield* tween(1.1, (k) => {
-        candle.position.set(lerp(from.x, to.x, k), lerp(from.y, to.y, k) + Math.sin(k * Math.PI) * 0.25, 0.001);
-        candle.rotation.z = lerp(rot, 0, k);
-        t.root.position.x = lerp(fleeFrom, 2.0, ease.in(k));
-      });
-      this.prop.root.attach(candle);
-      candle.position.set(0, 0.185, 0);
-      candle.rotation.set(0, 0, 0);
-    } else {
-      t.facing = 1;
-      yield* this.walkTo(t, 2.0, 1.6, ease.in);
-    }
+    // He flees while the candle is flung back onto its stand.
+    yield* together(this.returnCandle(1.1, 0.25), this.walkTo(t, 2.0, 1.4, ease.in));
     t.fade(0);
     // The dog trots over and sits proudly by the candle.
     yield* this.walkTo(d, this.standX - 0.32, 0.6);
@@ -294,10 +390,13 @@ function makePost(x: number): Group {
 export class ChasmLevel extends Level {
   readonly numeral = 'II';
   readonly title = 'The Chasm';
-  readonly pose: PoseId = 'bird';
+  readonly solutions: readonly PoseId[] = ['bird', 'rabbit'];
   override readonly hintX = 0.08;
 
   private readonly bird = new Bird();
+  private readonly rabbit = new Rabbit();
+  private readonly gapLeft = -0.14;
+  private readonly gapRight = 0.3;
   private readonly lantern = makeLantern();
   /** Lantern origin is its base; it hangs 0.165 m below the hook. */
   private readonly farHook = new Vector3(0.68 + HOOK_ARM, HOOK_Y - 0.165, 0.001);
@@ -306,9 +405,20 @@ export class ChasmLevel extends Level {
 
   constructor(room: Room) {
     super(room);
-    this.root.add(makeCliffs(-0.14, 0.3), makePost(0.68), makePost(-0.8));
+    this.root.add(makeCliffs(this.gapLeft, this.gapRight), makePost(0.68), makePost(-0.8));
     this.root.add(this.lantern.root);
-    this.add(this.bird);
+    this.add(this.bird, this.rabbit);
+  }
+
+  storyLine(): string {
+    return this.outcome === 'rabbit'
+      ? 'A rabbit leapt the chasm to keep the far light burning.'
+      : 'A bird carried the lantern home across the chasm.';
+  }
+
+  /** Never land in the gap. */
+  protected override landX(x: number): number {
+    return x > this.gapLeft - 0.12 && x < this.gapRight + 0.12 ? this.gapLeft - 0.2 : x;
   }
 
   protected reset(): void {
@@ -321,6 +431,9 @@ export class ChasmLevel extends Level {
     this.bird.fade(0, true);
     this.bird.flapping = true;
     this.bird.onFlap = () => sfx.flap();
+    this.rabbit.root.visible = false;
+    this.rabbit.fade(0, true);
+    this.rabbit.hopping = false;
   }
 
   protected tick(_dt: number, time: number): void {
@@ -329,30 +442,49 @@ export class ChasmLevel extends Level {
     this.lantern.glowMesh.scale.setScalar(this.glowBoost * (1 + 0.07 * Math.sin(time * 8.3)));
   }
 
-  /** Fly along a gentle arc to (x, y). */
-  private *flyTo(x: number, y: number, seconds: number): Script {
-    const b = this.bird.root;
-    const x0 = b.position.x;
-    const y0 = b.position.y;
-    if (Math.abs(x - x0) > 0.02) this.bird.facing = x > x0 ? 1 : -1;
-    yield* tween(seconds, (k) => {
-      const e = ease.inOut(k);
-      b.position.x = lerp(x0, x, e);
-      b.position.y = lerp(y0, y, e) + Math.sin(k * Math.PI) * 0.1;
-    });
+  protected solve(pose: PoseId, spawn: Vector3): Script {
+    return pose === 'rabbit' ? this.leap(spawn) : this.fetch(spawn);
   }
 
-  protected *solve(spawn: Vector3): Script {
+  /** Branch B: a mighty leap across; the rabbit stays to tend the light over there. */
+  private *leap(spawn: Vector3): Script {
+    const r = this.rabbit;
+    yield* this.emerge(r, spawn);
+    r.hopping = true;
+    yield* this.walkTo(r, this.gapLeft - 0.12, 0.5);
+    r.hopping = false;
+    r.facing = 1;
+    yield* wait(0.5); // gathering courage...
+    // ...and LEAP.
+    sfx.flap();
+    const x0 = r.root.position.x;
+    const x1 = this.gapRight + 0.15;
+    yield* tween(1.0, (k) => {
+      r.root.position.x = lerp(x0, x1, k);
+      r.root.position.y = GROUND + Math.sin(k * Math.PI) * 0.38;
+    });
+    sfx.dig(); // thump of landing
+    r.hopping = true;
+    yield* this.walkTo(r, this.farHook.x - 0.2, 0.45);
+    r.hopping = false;
+    r.facing = -1; // looks back at you across the chasm
+    yield* tween(1.0, (k) => (this.glowBoost = 1 + k * 1.1));
+    yield* wait(1.2);
+    this.solved = true;
+  }
+
+  /** Branch A: the bird flies over and carries the lantern home. */
+  private *fetch(spawn: Vector3): Script {
     const b = this.bird;
     const l = this.lantern.root;
     yield* this.emerge(b, spawn, false);
-    yield* this.flyTo(this.farHook.x - 0.02, this.farHook.y + 0.3, 1.8);
-    yield* this.flyTo(this.farHook.x, this.farHook.y + 0.2, 0.4);
+    yield* this.flyTo(this.bird, this.farHook.x - 0.02, this.farHook.y + 0.3, 1.8);
+    yield* this.flyTo(this.bird, this.farHook.x, this.farHook.y + 0.2, 0.4);
     b.root.attach(l);
     l.rotation.z = 0;
     yield* wait(0.2);
     // Carry it back over the chasm, swinging from the bird's feet.
-    yield* this.flyTo(this.nearHook.x, this.nearHook.y + 0.2, 2.4);
+    yield* this.flyTo(this.bird, this.nearHook.x, this.nearHook.y + 0.2, 2.4);
     this.root.attach(l);
     const from = l.position.clone();
     yield* tween(0.35, (k) => {
@@ -360,7 +492,7 @@ export class ChasmLevel extends Level {
     });
     l.rotation.z = 0;
     // Perch on the post and let the lantern blaze.
-    yield* this.flyTo(this.nearHook.x - HOOK_ARM, GROUND + 0.5, 0.8);
+    yield* this.flyTo(this.bird, this.nearHook.x - HOOK_ARM, GROUND + 0.5, 0.8);
     b.flapping = false;
     b.facing = 1;
     yield* tween(0.8, (k) => (this.glowBoost = 1 + k * 0.8));
@@ -413,10 +545,13 @@ function* together(...scripts: Script[]): Script {
 export class WallLevel extends Level {
   readonly numeral = 'III';
   readonly title = 'The Wall';
-  readonly pose: PoseId = 'rabbit';
+  readonly solutions: readonly PoseId[] = ['rabbit', 'bird'];
   override readonly hintX = -0.6;
 
   private readonly rabbit = new Rabbit();
+  private readonly bird = new Bird();
+  /** Top of the brick wall the kitten is trapped behind. */
+  private readonly wallTop = GROUND + 0.75;
   private readonly kitten = new Kitten();
   private readonly moundNear: Mesh;
   private readonly moundFar: Mesh;
@@ -442,7 +577,18 @@ export class WallLevel extends Level {
       this.dirtVel.push(new Vector3());
       this.root.add(d);
     }
-    this.add(this.kitten, this.rabbit);
+    this.add(this.kitten, this.rabbit, this.bird);
+  }
+
+  storyLine(): string {
+    return this.outcome === 'bird'
+      ? 'A bird showed the kitten the way over the wall.'
+      : 'A rabbit dug a tunnel and set the kitten free.';
+  }
+
+  /** Creatures arrive on the near side of the wall. */
+  protected override landX(x: number): number {
+    return Math.min(x, 0.05);
   }
 
   protected reset(): void {
@@ -456,6 +602,10 @@ export class WallLevel extends Level {
     this.rabbit.hopping = false;
     this.rabbit.digging = false;
     this.rabbit.onScoop = () => this.scoop();
+    this.bird.root.visible = false;
+    this.bird.fade(0, true);
+    this.bird.flapping = true;
+    this.bird.onFlap = () => sfx.flap();
     this.moundNear.scale.setScalar(0.001);
     this.moundFar.scale.setScalar(0.001);
     for (const d of this.dirt) d.visible = false;
@@ -500,7 +650,40 @@ export class WallLevel extends Level {
     yield* tween(seconds, (k) => (c.root.position.y = lerp(from, to, down ? ease.in(k) : ease.out(k))));
   }
 
-  protected *solve(spawn: Vector3): Script {
+  protected solve(pose: PoseId, spawn: Vector3): Script {
+    return pose === 'bird' ? this.guide(spawn) : this.tunnel(spawn);
+  }
+
+  /** Branch B: the bird perches on the wall and coaxes the kitten up and over. */
+  private *guide(spawn: Vector3): Script {
+    const b = this.bird;
+    const k = this.kitten;
+    yield* this.emerge(b, spawn, false);
+    yield* this.flyTo(b, 0.33, this.wallTop + 0.05, 1.5);
+    b.flapping = false;
+    b.facing = 1;
+    sfx.chirp();
+    yield* wait(0.6);
+    k.sad = false;
+    sfx.mew(false);
+    yield* this.walkTo(k, 0.56, 0.35);
+    yield* this.jumpTo(k, 0.36, this.wallTop - 0.01, 0.6, 0.12);
+    yield* wait(0.5);
+    // The bird flutters down; the kitten follows.
+    b.flapping = true;
+    sfx.chirp();
+    yield* this.flyTo(b, -0.4, GROUND, 0.9);
+    b.flapping = false;
+    yield* this.jumpTo(k, 0.04, GROUND, 0.7, 0.08);
+    yield* this.walkTo(k, -0.15, 0.35);
+    k.facing = -1;
+    sfx.mew(false);
+    yield* wait(1.2);
+    this.solved = true;
+  }
+
+  /** Branch A: the rabbit digs under the wall and leads the kitten out. */
+  private *tunnel(spawn: Vector3): Script {
     const r = this.rabbit;
     const k = this.kitten;
     yield* this.emerge(r, spawn);
@@ -555,7 +738,9 @@ export class Finale {
   private readonly bird = new Bird();
   private readonly rabbit = new Rabbit();
   private readonly kitten = new Kitten();
-  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten];
+  /** Only joins the circle if the rabbit befriended him in chapter I. */
+  private readonly thief = new Thief();
+  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten, this.thief];
   private t = 0;
 
   constructor() {
@@ -565,19 +750,22 @@ export class Finale {
     for (const a of this.actors) this.root.add(a.root);
   }
 
-  show(): void {
+  show(thiefIsFriend: boolean): void {
     this.t = 0;
     this.root.visible = true;
+    this.thief.root.position.set(-2.0, GROUND, 0.001);
     this.dog.root.position.set(-1.6, GROUND, 0.002);
     this.rabbit.root.position.set(1.6, GROUND, 0.002);
     this.kitten.root.position.set(1.8, GROUND, 0.002);
-    this.bird.root.position.set(-1.2, GROUND + 0.95, 0.003);
+    this.bird.root.position.set(-1.2, GROUND + 1.12, 0.003);
     for (const a of this.actors) {
       a.placed();
       a.fade(1, true);
       a.root.visible = true;
     }
     this.bird.flapping = true;
+    this.thief.fade(thiefIsFriend ? 1 : 0, true);
+    this.thief.sneaking = false;
   }
 
   hide(): void {
@@ -588,18 +776,20 @@ export class Finale {
     if (!this.root.visible) return;
     this.t += dt;
     const k = ease.out(Math.min(1, this.t / 2.5));
-    this.dog.root.position.x = lerp(-1.6, -0.85, k);
+    this.dog.root.position.x = lerp(-1.6, -1.22, k);
     this.dog.facing = 1;
-    this.rabbit.root.position.x = lerp(1.6, 0.8, k);
+    this.rabbit.root.position.x = lerp(1.6, 1.08, k);
     this.rabbit.facing = -1;
     this.rabbit.hopping = k < 1 || Math.sin(time * 1.5) > 0.6;
-    this.kitten.root.position.x = lerp(1.8, 1.08, k);
+    this.kitten.root.position.x = lerp(1.8, 1.38, k);
+    this.thief.root.position.x = lerp(-2.0, -1.68, k);
+    this.thief.facing = 1;
     this.kitten.facing = -1;
     this.kitten.sad = false;
     // The bird circles above everyone.
     const a = time * 0.9;
     this.bird.root.position.x = lerp(-1.2, Math.cos(a) * 0.95, k);
-    this.bird.root.position.y = GROUND + 0.95 + Math.sin(a * 2) * 0.06;
+    this.bird.root.position.y = GROUND + 1.12 + Math.sin(a * 2) * 0.06;
     this.bird.facing = Math.sin(a) > 0 ? -1 : 1;
     for (const actor of this.actors) actor.update(dt, time);
   }
