@@ -75,13 +75,14 @@ export class HandShadowCasters {
   }
 
   update(hands: HandData[]): void {
-    hands.forEach((hand, h) => {
+    for (let h = 0; h < hands.length; h++) {
+      const hand = hands[h];
       const segBase = h * SEGMENTS.length;
       const jointBase = h * JOINT_COUNT;
       if (!hand.tracked) {
         for (let i = 0; i < SEGMENTS.length; i++) this.bones.setMatrixAt(segBase + i, this.zero);
         for (let j = 0; j < JOINT_COUNT; j++) this.knuckles.setMatrixAt(jointBase + j, this.zero);
-        return;
+        continue;
       }
       for (let i = 0; i < SEGMENTS.length; i++) {
         const seg = SEGMENTS[i];
@@ -109,7 +110,7 @@ export class HandShadowCasters {
         this.m.compose(hand.joints[j], this.q, this.s);
         this.knuckles.setMatrixAt(jointBase + j, this.m);
       }
-    });
+    }
     this.bones.instanceMatrix.needsUpdate = true;
     this.knuckles.instanceMatrix.needsUpdate = true;
   }

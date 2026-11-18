@@ -37,6 +37,8 @@ export abstract class Level {
   abstract readonly numeral: string;
   abstract readonly title: string;
   abstract readonly pose: PoseId;
+  /** Where the hand-shape hint sits on the stage (clear of this level's props). */
+  readonly hintX: number = -0.85;
   readonly root = new Group();
   /** Every silhouette that needs a per-frame update. */
   protected readonly actors: Silhouette[] = [];
@@ -293,6 +295,7 @@ export class ChasmLevel extends Level {
   readonly numeral = 'II';
   readonly title = 'The Chasm';
   readonly pose: PoseId = 'bird';
+  override readonly hintX = 0.08;
 
   private readonly bird = new Bird();
   private readonly lantern = makeLantern();
@@ -411,6 +414,7 @@ export class WallLevel extends Level {
   readonly numeral = 'III';
   readonly title = 'The Wall';
   readonly pose: PoseId = 'rabbit';
+  override readonly hintX = -0.6;
 
   private readonly rabbit = new Rabbit();
   private readonly kitten = new Kitten();

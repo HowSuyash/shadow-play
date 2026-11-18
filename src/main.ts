@@ -9,7 +9,7 @@ import { HandShadowCasters } from './hands/shadows.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
-import { Fader, Flash, Hint, HoldRing, makeText, projectToWall } from './ui/wallUI.js';
+import { Fader, Flash, Hint, HoldRing, makeText, PauseMenu, projectToWall } from './ui/wallUI.js';
 
 type Phase = 'title' | 'level' | 'end';
 
@@ -36,8 +36,14 @@ class Game {
   readonly hint = new Hint();
   readonly debug = new DebugOverlay();
   readonly finale = new Finale();
+  readonly menu = new PauseMenu();
 
   phase: Phase = 'title';
+  paused = false;
+  private lastDt = 0;
+  private readonly menuPinchPoints: Vector3[] = [];
+  private readonly menuPinchStarted: boolean[] = [];
+  private static readonly NONE: never[] = [];
   private readonly levels: Level[];
   private levelIndex = 0;
   private level: Level | undefined;
@@ -60,7 +66,7 @@ class Game {
   private readonly wallPoint = new Vector3();
 
   constructor(private readonly world: World) {
-    this.room.root.add(this.casters.root, this.wall);
+    this.room.root.add(this.casters.root, this.wall, this.menu.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
     const title = makeText(['SHADOW PLAY'], 0.34, { size: 120, letterSpacing: 18, weight: '700' });
@@ -86,20 +92,25 @@ class Game {
   // -------------------------------------------------------------------------
 
   update(dt: number, time: number): void {
+    this.lastDt = dt;
     this.hands.update(this.world, this.room.root);
     this.casters.update([this.hands.left, this.hands.right]);
     this.poses.updateFeatures();
 
     const inLevel = this.phase === 'level' && this.level !== undefined;
-    const levelReady = inLevel && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
-    const g = this.gestures.update(dt, this.phase !== 'level' && this.curtainT < 0, false);
+    const levelReady = inLevel && !this.paused && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
+    const canPause = inLevel && !this.paused && this.curtainT < 0;
+    const g = this.gestures.update(dt, this.phase !== 'level' && this.curtainT < 0, canPause);
     const pose = this.poses.update(dt, levelReady);
 
     if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
-    else if (inLevel) this.updateLevel(dt, pose, levelReady);
+    else if (inLevel && this.paused) this.updatePaused(dt);
+    else if (inLevel) this.updateLevel(dt, pose, levelReady, g.pause);
 
-    this.level?.update(dt, time);
+    // The shadow world freezes while paused.
+    if (!this.paused) this.level?.update(dt, time);
     this.finale.update(dt, time);
+    if (!this.paused) this.menu.update(dt, Game.NONE, Game.NONE); // lets it animate closed
     this.updateCurtain(dt);
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -155,9 +166,68 @@ class Game {
     this.levelTitleTimer = 3.5;
   }
 
-  private updateLevel(dt: number, pose: PoseResult, ready: boolean): void {
+  // -------------------------------------------------------------------------
+  // Pause: both palms up for 1 s → pinch Resume / Restart.
+
+  pause(): void {
+    if (this.phase !== 'level' || this.paused) return;
+    this.paused = true;
+    this.menu.setVisible(true);
+    this.ring.set(0);
+    sfx.setChime(0);
+    sfx.click();
+  }
+
+  private resume(): void {
+    this.paused = false;
+    this.menu.setVisible(false);
+    this.gestures.palmsUp.reset();
+    this.poses.reset();
+    sfx.click();
+  }
+
+  private updatePaused(_dt: number): void {
+    const pts = this.menuPinchPoints;
+    const started = this.menuPinchStarted;
+    pts.length = 0;
+    started.length = 0;
+    for (const [pinch, hand] of [
+      [this.gestures.pinchL, this.poses.left],
+      [this.gestures.pinchR, this.poses.right],
+    ] as const) {
+      if (!hand.tracked) continue;
+      pts.push(pinch.point);
+      started.push(pinch.started);
+    }
+    let choice = this.menu.update(this.lastDt, pts, started);
+    // Desktop-only stand-ins for the pinch buttons.
+    if (this.debugKey('KeyP')) choice = 'resume';
+    if (this.debugKey('KeyR')) choice = 'restart';
+    if (choice === 'resume') this.resume();
+    else if (choice === 'restart') {
+      this.resume();
+      this.hint.show(null);
+      this.levelTitles.forEach((t) => t.show(false));
+      this.runCurtain(() => this.startRun());
+    }
+  }
+
+  private updateLevel(dt: number, pose: PoseResult, ready: boolean, pauseFired: boolean): void {
     const level = this.level!;
     this.runTime += dt;
+
+    if (pauseFired || this.debugKey('KeyP')) {
+      this.pause();
+      return;
+    }
+    // Show the palms-up ring only once the gesture is clearly building.
+    const pp = this.gestures.palmsUp.progress;
+    if (pp > 0.15 && pp > pose.progress) {
+      projectToWall(this.gestures.palmsUpAnchor, this.room.lightPos, this.wallPoint);
+      this.ring.set(pp, this.wallPoint);
+      sfx.setChime(pp);
+      return;
+    }
 
     if (this.levelTitleTimer > 0) {
       this.levelTitleTimer -= dt;
@@ -196,7 +266,7 @@ class Game {
       if (this.levelClock >= HINT_DELAY && !this.hintShown) {
         this.hintShown = true;
         this.hintsUsed++;
-        this.hint.show(level.pose);
+        this.hint.show(level.pose, level.hintX);
       }
     }
 
@@ -262,7 +332,7 @@ class Game {
   private describe(): string {
     if (this.phase !== 'level' || !this.level) return this.phase;
     const l = this.level;
-    return `level ${l.numeral} "${l.title}"${l.busy ? ' (cutscene)' : ''}${l.solved ? ' SOLVED' : ''}  clock ${this.levelClock.toFixed(1)}s`;
+    return `${this.paused ? 'PAUSED  ' : ''}level ${l.numeral} "${l.title}"${l.busy ? ' (cutscene)' : ''}${l.solved ? ' SOLVED' : ''}  clock ${this.levelClock.toFixed(1)}s`;
   }
 
   /** Desktop-only debug keys; never required on a headset. */
@@ -337,4 +407,8 @@ World.create(
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
   setupEnterButton(world);
+  // Opening the Quest system menu pauses the game.
+  world.visibilityState.subscribe((state) => {
+    if (state === VisibilityState.VisibleBlurred) game?.pause();
+  });
 });

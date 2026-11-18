@@ -291,24 +291,30 @@ const PICTOGRAMS: Record<PoseId, (ctx: Ctx) => void> = {
     digit(ctx, 170, 135, 95, 32, -75); // thumb raised: the ear
     eye(ctx, 262, 140, 9);
   },
-  // Two hands crossed at the thumbs, fingers fanned out as wings.
+  // Two hands side by side, thumbs hooked into a head, fingers fanned out as wings.
   bird(ctx) {
     const cx = 256;
     for (const s of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(cx + s * 38, 170, 55, 38, s * 0.25, 0, Math.PI * 2);
+      ctx.ellipse(cx + s * 55, 205, 52, 34, s * -0.2, 0, Math.PI * 2);
       ctx.fill(); // palm
       for (let i = 0; i < 4; i++) {
-        const ang = s > 0 ? -35 + i * 16 : 180 + 35 - i * 16;
-        digit(ctx, cx + s * 70, 165 - i * 4, 140 - i * 14, 24, ang);
+        const ang = s > 0 ? -6 - i * 15 : 186 + i * 15;
+        digit(ctx, cx + s * 88, 200 - i * 6, 125 - i * 12, 22, ang); // feathers
       }
-      digit(ctx, cx + s * 30, 220, 110, 50, s > 0 ? 100 : 80); // wrists
+      digit(ctx, cx + s * 40, 228, 75, 40, s > 0 ? 112 : 68); // wrist
     }
-    digit(ctx, cx - 18, 140, 70, 26, -70); // hooked thumbs: the head
-    digit(ctx, cx + 18, 140, 70, 26, -110);
+    digit(ctx, cx - 34, 190, 88, 24, -62); // hooked thumbs: the neck
+    digit(ctx, cx + 34, 190, 88, 24, -118);
     ctx.beginPath();
-    ctx.arc(cx, 82, 24, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(cx, 112, 24, 0, Math.PI * 2);
+    ctx.fill(); // head
+    ctx.beginPath();
+    ctx.moveTo(cx + 18, 102);
+    ctx.lineTo(cx + 54, 112);
+    ctx.lineTo(cx + 18, 122);
+    ctx.fill(); // beak
+    eye(ctx, cx + 6, 106, 6);
   },
   // A fist with two raised ears.
   rabbit(ctx) {
@@ -370,7 +376,9 @@ export class Hint {
     this.captions = { dog: d[1], bird: b[1], rabbit: r[1] };
   }
 
-  show(pose: PoseId | null): void {
+  /** @param x stage x for the hint's centre, so it never covers the level's props. */
+  show(pose: PoseId | null, x = -0.85): void {
+    if (pose) this.root.position.x = x + 0.85;
     for (const p of ['dog', 'bird', 'rabbit'] as PoseId[]) {
       this.pics[p].show(p === pose);
       this.captions[p].show(p === pose);
