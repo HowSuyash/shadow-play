@@ -155,8 +155,8 @@ export function rabbitScore(f: HandFeatures): number {
 /**
  * SNAKE — one hand like a cobra's head: all four fingers straight and
  * pressed together, thumb tucked flat against the side of the hand (the
- * closed mouth). Differs from DOG (thumb raised, pinky dropped) and from an
- * open palm (fingers spread).
+ * closed mouth). Differs from DOG (thumb raised, pinky dropped), from an
+ * open palm (fingers spread) and from "four" (thumb folded across the palm).
  */
 export function snakeScore(f: HandFeatures): number {
   if (!f.tracked) return 0;
@@ -170,7 +170,9 @@ export function snakeScore(f: HandFeatures): number {
     low(f.curl[4], 0.4, 0.75),
     low(angleDeg(f.dir[1], f.dir[4]), 16, 32), // fingers together
     low(angleDeg(f.dir[4], f.dir[3]), 14, 28), // pinky not dropped
-    low(tuck, 0.04, 0.07), // thumb tucked in
+    low(tuck, 0.04, 0.07), // thumb tucked in…
+    low(f.curl[0], 0.5, 0.85), // …lying straight along the hand,
+    low(angleDeg(f.dir[0], f.dir[1]), 30, 55), // not folded across the palm (that's "four")
   );
 }
 
