@@ -121,7 +121,7 @@ class Game {
     title.position.set(0, STAGE.titleY, STAGE.z);
     const sub = makeText(['Your Hands. Your Shadows. Your World.'], 0.18, { size: 64, italic: true });
     sub.position.set(0, STAGE.titleY - 0.27, STAGE.z);
-    const how = makeText(['raise your hands to the light · hold an open palm to begin'], 0.15, { size: 56 });
+    const how = makeText(['raise your hands to the light'], 0.13, { size: 56, italic: true });
     how.position.set(0, STAGE.groundY - 0.05, STAGE.z);
     this.wall.add(title, sub, how);
     this.titleTexts = [new Fader(title, 1.5), new Fader(sub, 1.2), new Fader(how, 1)];
