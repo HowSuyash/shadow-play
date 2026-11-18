@@ -252,6 +252,44 @@ export class Sfx {
     [659.25, 830.61, 987.77, 1318.5].forEach((f, i) => this.tone(f, t + i * 0.12, 1.4, 'sine', 0.08));
   }
 
+  /** Heavy stone/iron rumble: a gate grinding open. */
+  rumble(seconds = 1.4): void {
+    if (!this.ctx) return;
+    const t = this.now;
+    const f = this.noise(t, seconds, 'lowpass', 140, 3, 0.5, 0.15);
+    f.frequency.linearRampToValueAtTime(260, t + seconds);
+    for (let i = 0; i < 5; i++) this.noise(t + i * (seconds / 5), 0.05, 'bandpass', 900, 4, 0.12);
+  }
+
+  /** The Shadow Eater's growl. */
+  roar(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = this.now;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, t);
+    o.frequency.linearRampToValueAtTime(48, t + 1.2);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 420;
+    const g = ctx.createGain();
+    this.env(g, t, 0.35, 0.15, 1.1);
+    o.connect(lp).connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 1.4);
+    this.noise(t, 1.0, 'bandpass', 300, 1, 0.2, 0.1);
+  }
+
+  /** A magic seal shattering: glassy sparkle with a deep thump. */
+  sealBreak(): void {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.tone(90, t, 0.4, 'sine', 0.3);
+    [1567.98, 2093, 2637, 3135.96].forEach((f, i) => this.tone(f, t + 0.03 * i, 0.6, 'triangle', 0.05));
+    this.noise(t, 0.35, 'highpass', 5000, 0.8, 0.09);
+  }
+
   /** Soft puff when the wrong creature appears and fades. */
   fizzle(): void {
     if (!this.ctx) return;

@@ -3,14 +3,22 @@ import { sfx } from '../audio/sfx.js';
 import type { PoseId } from '../hands/poseDetector.js';
 import type { Room } from '../scene/room.js';
 import { STAGE } from '../scene/layout.js';
-import { Bird, Dog, Kitten, makeCandleProp, makeLantern, Rabbit, Thief, type Silhouette } from './creatures.js';
+import { makeBackdrop } from './backdrops.js';
+import { Bird, Dog, Kitten, makeCandleProp, makeLantern, Rabbit, Snake, Thief, type Silhouette } from './creatures.js';
 import { capsule, circle, ease, ellipse, glow, part, poly, ScriptRunner, shadowMaterial, tween, wait, type Script } from './shapes.js';
 
-const GROUND = STAGE.groundY;
-const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+export const GROUND = STAGE.groundY;
+export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+
+const CREATURES: Record<PoseId, () => Silhouette> = {
+  dog: () => new Dog(),
+  bird: () => new Bird(),
+  rabbit: () => new Rabbit(),
+  snake: () => new Snake(),
+};
 
 export function makeCreature(pose: PoseId): Silhouette {
-  return pose === 'dog' ? new Dog() : pose === 'bird' ? new Bird() : new Rabbit();
+  return CREATURES[pose]();
 }
 
 /** Uneven earth along the bottom of the stage; creatures walk on its top edge. */
@@ -36,6 +44,10 @@ export function makeGround(from = STAGE.left - 2.2, to = STAGE.right + 2.2): Gro
 export abstract class Level {
   abstract readonly numeral: string;
   abstract readonly title: string;
+  /** One line of story shown under the chapter title. */
+  abstract readonly subtitle: string;
+  /** Seconds before the hand-shape hint appears (short for the tutorial and the boss). */
+  readonly hintDelay: number = 8;
   /**
    * Shadows that solve this chapter. Each leads to a different consequence,
    * so the player's choices write the story. The first is the classic one.
@@ -79,8 +91,11 @@ export abstract class Level {
     this.root.visible = false;
   }
 
-  /** @returns true if this shadow solves the chapter. */
-  summon(pose: PoseId, spawn: Vector3, duet = false): boolean {
+  /**
+   * @param partnerPose co-op: the shape the other player was holding at the same moment
+   * @returns true if this shadow solves the chapter.
+   */
+  summon(pose: PoseId, spawn: Vector3, duet = false, _partnerPose: PoseId | null = null): boolean {
     this.duet = duet;
     const solves = this.solutions.includes(pose);
     if (solves) this.outcome = pose;
@@ -183,8 +198,9 @@ export abstract class Level {
 // ---------------------------------------------------------------------------
 
 export class ThiefLevel extends Level {
-  readonly numeral = 'I';
-  readonly title = 'The Thief';
+  readonly numeral = 'II';
+  readonly title = 'The Lost Treasure';
+  readonly subtitle = 'A shadow thief has stolen the second fragment of light.';
   readonly solutions: readonly PoseId[] = ['dog', 'rabbit'];
 
   private readonly thief = new Thief();
@@ -199,7 +215,7 @@ export class ThiefLevel extends Level {
 
   constructor(room: Room) {
     super(room);
-    this.root.add(makeGround());
+    this.root.add(makeBackdrop('village'), makeGround());
     this.prop.root.position.set(this.standX, GROUND, 0.001);
     this.root.add(this.prop.root, this.heart);
     this.add(this.thief, this.dog, this.rabbit);
@@ -392,8 +408,10 @@ function makePost(x: number): Group {
 }
 
 export class ChasmLevel extends Level {
-  readonly numeral = 'II';
-  readonly title = 'The Chasm';
+  readonly numeral = 'I';
+  readonly title = 'The First Light';
+  readonly subtitle = 'The Shadow Eater stole the light. Your hands hold the old magic.';
+  override readonly hintDelay = 4;
   readonly solutions: readonly PoseId[] = ['bird', 'rabbit'];
   override readonly hintX = 0.08;
 
@@ -535,7 +553,7 @@ function makeBrickWall(x0: number, x1: number, height: number): Group {
 }
 
 /** Run several scripts side by side until all finish. */
-function* together(...scripts: Script[]): Script {
+export function* together(...scripts: Script[]): Script {
   const done = scripts.map(() => false);
   for (const s of scripts) s.next(0);
   while (done.includes(false)) {
@@ -548,7 +566,8 @@ function* together(...scripts: Script[]): Script {
 
 export class WallLevel extends Level {
   readonly numeral = 'III';
-  readonly title = 'The Wall';
+  readonly title = 'The Underground Secret';
+  readonly subtitle = 'Beneath the roots, a friend is trapped.';
   readonly solutions: readonly PoseId[] = ['rabbit', 'bird'];
   override readonly hintX = -0.6;
 
@@ -568,7 +587,7 @@ export class WallLevel extends Level {
   constructor(room: Room) {
     super(room);
     const m = shadowMaterial();
-    this.root.add(makeGround(), makeBrickWall(0.2, 0.44, 0.75), makeBrickWall(1.18, 1.42, 0.75));
+    this.root.add(makeBackdrop('forest'), makeGround(), makeBrickWall(0.2, 0.44, 0.75), makeBrickWall(1.18, 1.42, 0.75));
     this.moundNear = part([ellipse(0, 0, 0.11, 0.045)], m);
     this.moundFar = part([ellipse(0, 0, 0.11, 0.045)], m);
     this.moundNear.position.set(this.nearX - 0.1, GROUND, 0.001);
@@ -744,7 +763,8 @@ export class Finale {
   private readonly kitten = new Kitten();
   /** Only joins the circle if the rabbit befriended him in chapter I. */
   private readonly thief = new Thief();
-  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten, this.thief];
+  private readonly snake = new Snake();
+  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten, this.thief, this.snake];
   private t = 0;
 
   constructor() {
@@ -758,6 +778,7 @@ export class Finale {
     this.t = 0;
     this.root.visible = true;
     this.thief.root.position.set(-2.0, GROUND, 0.001);
+    this.snake.root.position.set(2.0, GROUND, 0.002);
     this.dog.root.position.set(-1.6, GROUND, 0.002);
     this.rabbit.root.position.set(1.6, GROUND, 0.002);
     this.kitten.root.position.set(1.8, GROUND, 0.002);
@@ -788,6 +809,9 @@ export class Finale {
     this.kitten.root.position.x = lerp(1.8, 1.38, k);
     this.thief.root.position.x = lerp(-2.0, -1.68, k);
     this.thief.facing = 1;
+    this.snake.root.position.x = lerp(2.0, 1.75, k);
+    this.snake.facing = -1;
+    this.snake.rear = 0.6 + 0.2 * Math.sin(time * 1.3);
     this.kitten.facing = -1;
     this.kitten.sad = false;
     // The bird circles above everyone.

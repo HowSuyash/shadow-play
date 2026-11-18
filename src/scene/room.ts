@@ -209,11 +209,13 @@ export class Room {
     this.light.target.position.set(0, EYE_Y + 0.45, WALL_Z);
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(2048, 2048);
+    // Concentrate the shadow map on the central cone where the hands are: sharper hand shadows.
+    this.light.shadow.focus = 0.62;
     this.light.shadow.camera.near = 0.04;
     this.light.shadow.camera.far = 5;
     this.light.shadow.bias = -0.0004;
-    this.light.shadow.radius = 4;
-    this.light.shadow.blurSamples = 12;
+    this.light.shadow.radius = 3;
+    this.light.shadow.blurSamples = 8;
     this.root.add(this.light, this.light.target);
 
     this.ambient = new HemisphereLight(0x6a4630, 0x140a06, 0.35);

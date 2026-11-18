@@ -10,7 +10,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from '@iwsdk/core';
-import type { PoseId } from '../hands/poseDetector.js';
+import { POSES, type PoseId } from '../hands/poseDetector.js';
 import { MENU, STAGE } from '../scene/layout.js';
 
 const PARCHMENT = '#f6dfb0';
@@ -316,6 +316,25 @@ const PICTOGRAMS: Record<PoseId, (ctx: Ctx) => void> = {
     ctx.fill(); // beak
     eye(ctx, cx + 6, 106, 6);
   },
+  // Side view: flat hand with fingers pressed together, thumb tucked (the mouth), forked tongue.
+  snake(ctx) {
+    digit(ctx, 20, 230, 170, 66, -12); // forearm
+    ctx.beginPath();
+    ctx.roundRect(160, 160, 190, 66, 32); // fingers pressed together: the head
+    ctx.fill();
+    digit(ctx, 330, 175, 70, 46, 8); // fingertips: the snout
+    digit(ctx, 175, 222, 150, 24, -2); // tucked thumb: the jaw
+    ctx.beginPath(); // forked tongue
+    ctx.moveTo(392, 205);
+    ctx.lineTo(440, 200);
+    ctx.lineTo(452, 186);
+    ctx.lineTo(446, 204);
+    ctx.lineTo(456, 220);
+    ctx.lineTo(440, 210);
+    ctx.lineTo(392, 214);
+    ctx.fill();
+    eye(ctx, 318, 180, 9);
+  },
   // A fist with two raised ears.
   rabbit(ctx) {
     digit(ctx, 236, 330, 130, 70, -90); // wrist
@@ -348,6 +367,7 @@ const POSE_CAPTIONS: Record<PoseId, string[]> = {
   dog: ['Make a DOG', 'flat hand · thumb up · pinky down'],
   bird: ['Make a BIRD', 'hook your thumbs · spread your fingers'],
   rabbit: ['Make a RABBIT', 'two fingers up · curl the rest'],
+  snake: ['Make a SNAKE', 'fingers together · thumb tucked in'],
 };
 
 /** Shadow pictogram + short caption, shown after 8 s without success. */
@@ -369,24 +389,22 @@ export class Hint {
       this.root.add(cap);
       return [new Fader(m, 2), new Fader(cap, 2)] as const;
     };
-    const d = make('dog');
-    const b = make('bird');
-    const r = make('rabbit');
-    this.pics = { dog: d[0], bird: b[0], rabbit: r[0] };
-    this.captions = { dog: d[1], bird: b[1], rabbit: r[1] };
+    this.pics = {} as Record<PoseId, Fader>;
+    this.captions = {} as Record<PoseId, Fader>;
+    for (const p of POSES) [this.pics[p], this.captions[p]] = make(p);
   }
 
   /** @param x stage x for the hint's centre, so it never covers the level's props. */
   show(pose: PoseId | null, x = -0.85): void {
     if (pose) this.root.position.x = x + 0.85;
-    for (const p of ['dog', 'bird', 'rabbit'] as PoseId[]) {
+    for (const p of POSES) {
       this.pics[p].show(p === pose);
       this.captions[p].show(p === pose);
     }
   }
 
   update(dt: number, time: number): void {
-    for (const p of ['dog', 'bird', 'rabbit'] as PoseId[]) {
+    for (const p of POSES) {
       this.pics[p].update(dt);
       this.captions[p].update(dt);
       // Gentle breathing so the eye is drawn to it.
@@ -511,5 +529,118 @@ export class PauseMenu {
       b.mesh.scale.setScalar(hot ? 1.12 : 1);
     }
     return pressed;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fragments of light: the story's progress bar
+// ---------------------------------------------------------------------------
+
+function fragmentTexture(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,248,220,1)');
+  g.addColorStop(0.18, 'rgba(255,200,110,0.95)');
+  g.addColorStop(0.45, 'rgba(255,150,60,0.35)');
+  g.addColorStop(1, 'rgba(255,120,40,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  // Four-point sparkle.
+  ctx.fillStyle = 'rgba(255,250,235,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(64, 14);
+  ctx.lineTo(70, 58);
+  ctx.lineTo(114, 64);
+  ctx.lineTo(70, 70);
+  ctx.lineTo(64, 114);
+  ctx.lineTo(58, 70);
+  ctx.lineTo(14, 64);
+  ctx.lineTo(58, 58);
+  ctx.closePath();
+  ctx.fill();
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** Five fragments of stolen light along the top of the wall; each chapter returns one. */
+export class FragmentBar {
+  readonly root = new Group();
+  private readonly slots: Mesh[] = [];
+  private readonly lit: boolean[] = [];
+  private readonly flyer: Mesh;
+  private flyT = 1;
+  private flyIndex = -1;
+  private readonly from = new Vector3();
+  private readonly to = new Vector3();
+
+  constructor(count = 5) {
+    const tex = fragmentTexture();
+    for (let i = 0; i < count; i++) {
+      const m = new Mesh(
+        new PlaneGeometry(0.11, 0.11),
+        new MeshBasicMaterial({ map: tex, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.15 }),
+      );
+      m.position.set((i - (count - 1) / 2) * 0.15, STAGE.titleY + 0.42, STAGE.z + 0.003);
+      m.renderOrder = 6;
+      this.slots.push(m);
+      this.lit.push(false);
+      this.root.add(m);
+    }
+    this.flyer = new Mesh(
+      new PlaneGeometry(0.2, 0.2),
+      new MeshBasicMaterial({ map: tex, transparent: true, blending: AdditiveBlending, depthWrite: false }),
+    );
+    this.flyer.visible = false;
+    this.flyer.renderOrder = 7;
+    this.root.add(this.flyer);
+    this.root.visible = false;
+  }
+
+  /** Show/hide the bar (hidden on the title screen). */
+  setVisible(v: boolean): void {
+    this.root.visible = v;
+  }
+
+  reset(): void {
+    this.lit.fill(false);
+    this.flyT = 1;
+    this.flyer.visible = false;
+  }
+
+  /** A fragment rises from `at` (wall point) and flies into slot `i`. */
+  collect(i: number, at: Vector3): void {
+    if (i < 0 || i >= this.slots.length) return;
+    this.flyIndex = i;
+    this.flyT = 0;
+    this.from.set(at.x, at.y, STAGE.z + 0.006);
+    this.to.copy(this.slots[i].position);
+  }
+
+  update(dt: number, time: number): void {
+    if (this.flyT < 1) {
+      this.flyT = Math.min(1, this.flyT + dt / 1.4);
+      const k = this.flyT;
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      this.flyer.visible = true;
+      this.flyer.position.set(
+        this.from.x + (this.to.x - this.from.x) * e,
+        this.from.y + (this.to.y - this.from.y) * e + Math.sin(k * Math.PI) * 0.25,
+        this.to.z + 0.002,
+      );
+      this.flyer.scale.setScalar(1.6 - k);
+      this.flyer.rotation.z = time * 3;
+      if (this.flyT >= 1) {
+        this.flyer.visible = false;
+        this.lit[this.flyIndex] = true;
+      }
+    }
+    this.slots.forEach((m, i) => {
+      const mat = m.material as MeshBasicMaterial;
+      mat.opacity = this.lit[i] ? 0.85 + 0.15 * Math.sin(time * 3 + i) : 0.15;
+      m.rotation.z = this.lit[i] ? time * 0.5 + i : 0;
+    });
   }
 }

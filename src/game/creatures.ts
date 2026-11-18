@@ -371,6 +371,77 @@ export class Kitten extends Silhouette {
 }
 
 // ---------------------------------------------------------------------------
+
+const SNAKE_SEGMENTS = 16;
+
+/** A long, undulating serpent: tapering body segments trailing behind a hooded head. */
+export class Snake extends Silhouette {
+  private readonly segs: Mesh[] = [];
+  private readonly radii: number[] = [];
+  private readonly head: Group;
+  private readonly tongue: Mesh;
+  private wave = 0;
+  /** 0 = lying low, 1 = reared up like a cobra. */
+  rear = 0;
+  /** 0 = normal, 1 = squashed flat (squeezing through a crack). */
+  flat = 0;
+
+  constructor() {
+    super(1.2);
+    const m = this.mat;
+    // One unit disc shared by every body segment, scaled per segment.
+    const disc = part([circle(0, 0, 1)], m).geometry;
+    for (let i = 0; i < SNAKE_SEGMENTS; i++) {
+      const r = 0.032 * (1 - (i / SNAKE_SEGMENTS) * 0.8);
+      const seg = new Mesh(disc, m);
+      seg.scale.setScalar(r);
+      seg.renderOrder = 3;
+      this.segs.push(seg);
+      this.radii.push(r);
+      this.root.add(seg);
+    }
+    this.tongue = part([poly([0, 0.004, 0.05, 0.004, 0.065, 0.018, 0.058, 0.002, 0.068, -0.014, 0.05, -0.004, 0, -0.004])], m);
+    this.tongue.position.set(0.075, -0.004, 0);
+    this.head = pivot(
+      0,
+      0,
+      part(
+        [
+          withHole(ellipse(0.025, 0.006, 0.058, 0.032, 0.05), 0.045, 0.018, 0.008, 0.006),
+          ellipse(-0.012, 0.012, 0.045, 0.04), // hood
+        ],
+        m,
+      ),
+      this.tongue,
+    );
+    this.root.add(this.head);
+  }
+
+  protected animate(dt: number, time: number, speed: number): void {
+    const moving = speed > 0.02;
+    this.wave += dt * (moving ? 9 : 2.5);
+    const amp = moving ? 0.022 : 0.008;
+    const squash = 1 - this.flat * 0.6;
+    for (let i = 0; i < SNAKE_SEGMENTS; i++) {
+      const r = this.radii[i];
+      const x = -0.03 - i * 0.034;
+      // Rearing lifts the front third of the body in a smooth curve.
+      const lift = this.rear * Math.max(0, 1 - i / 6) * 0.16;
+      const y = r * squash + Math.sin(this.wave - i * 0.65) * amp * (i / SNAKE_SEGMENTS + 0.3) * squash + lift;
+      this.segs[i].position.set(x, y, 0);
+      this.segs[i].scale.set(r, r * squash, 1);
+    }
+    const neck = this.segs[0].position;
+    this.head.position.set(0.02, neck.y + 0.012 + this.rear * 0.06, 0);
+    this.head.rotation.z = this.rear * -0.15 + Math.sin(this.wave * 0.7) * 0.05;
+    this.head.scale.set(1, squash, 1);
+    // Tongue flicks out every so often.
+    const flick = Math.sin(time * 7) > 0.6;
+    this.tongue.visible = flick;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 

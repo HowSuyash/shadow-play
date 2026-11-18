@@ -1,6 +1,7 @@
 import { Color, createSystem, Group, Mesh, MeshBasicMaterial, Vector3, VisibilityState, World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
+import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { Gestures } from './hands/gestures.js';
 import { HandData, HandTracker } from './hands/handData.js';
@@ -11,12 +12,10 @@ import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
 import { Lobby } from './ui/lobby.js';
-import { Fader, Flash, Hint, HoldRing, makeText, PauseMenu, projectToWall } from './ui/wallUI.js';
+import { Fader, Flash, FragmentBar, Hint, HoldRing, makeText, PauseMenu, projectToWall } from './ui/wallUI.js';
 
 type Phase = 'title' | 'level' | 'end';
 
-/** Seconds without success before the hand-shape hint appears. */
-const HINT_DELAY = 8;
 /** Seconds each alternative answer's hint stays up before switching. */
 const HINT_CYCLE = 4;
 /** Pause after a level is solved before the curtain falls. */
@@ -80,6 +79,8 @@ class Game {
 
   private readonly titleTexts: Fader[];
   private readonly levelTitles: Fader[];
+  private readonly levelSubtitles: Fader[];
+  readonly fragments = new FragmentBar();
   private levelTitleTimer = 0;
   private endTexts: Fader[] = [];
   private readonly wallPoint = new Vector3();
@@ -98,13 +99,26 @@ class Game {
     this.titleTexts = [new Fader(title, 1.5), new Fader(sub, 1.2), new Fader(how, 1)];
     this.titleTexts.forEach((t) => t.show());
 
-    this.levels = [new ThiefLevel(this.room), new ChasmLevel(this.room), new WallLevel(this.room)];
-    this.wall.add(this.finale.root);
+    // The story: the Shadow Eater stole the light; five chapters win it back.
+    this.levels = [
+      new ChasmLevel(this.room),
+      new ThiefLevel(this.room),
+      new WallLevel(this.room),
+      new PassageLevel(this.room),
+      new ShadowEaterLevel(this.room),
+    ];
+    this.wall.add(this.finale.root, this.fragments.root);
     this.levelTitles = this.levels.map((l) => {
       const m = makeText([`${l.numeral} · ${l.title}`], 0.2, { size: 80, letterSpacing: 4 });
       m.position.set(0, STAGE.titleY, STAGE.z);
       this.wall.add(m, l.root);
       return new Fader(m, 1.5);
+    });
+    this.levelSubtitles = this.levels.map((l) => {
+      const m = makeText([l.subtitle], 0.1, { size: 52, italic: true, color: '#ffe9c4' });
+      m.position.set(0, STAGE.titleY - 0.17, STAGE.z);
+      this.wall.add(m);
+      return new Fader(m, 1.2);
     });
   }
 
@@ -146,6 +160,8 @@ class Game {
     this.hint.update(dt, time);
     for (const t of this.titleTexts) t.update(dt);
     for (const t of this.levelTitles) t.update(dt);
+    for (const t of this.levelSubtitles) t.update(dt);
+    this.fragments.update(dt, time);
     for (const t of this.endTexts) t.update(dt);
 
     // Desktop debug: D per spec; backquote too, because the IWER emulator uses WASD.
@@ -191,7 +207,7 @@ class Game {
         break;
       case 'summon':
         if (this.phase === 'level' && this.level && !this.level.busy && !this.level.solved) {
-          this.doSummon(e.pose, this.wallPoint.set(e.x, e.y, STAGE.z), e.duet);
+          this.doSummon(e.pose, this.wallPoint.set(e.x, e.y, STAGE.z), e.duet, e.pose2 ?? null);
         }
         break;
       case 'pause':
@@ -258,11 +274,14 @@ class Game {
     if (this.paused) this.resume();
     this.hint.show(null);
     this.levelTitles.forEach((t) => t.show(false));
+    this.levelSubtitles.forEach((t) => t.show(false));
     this.runCurtain(() => this.startRun());
   }
 
   private startRun(): void {
     this.finale.hide();
+    this.fragments.reset();
+    this.fragments.setVisible(true);
     this.runTime = 0;
     this.hintsUsed = 0;
     this.wrongCreatures = 0;
@@ -282,7 +301,8 @@ class Game {
     this.hint.show(null);
     this.poses.reset();
     this.levelTitles[i].show();
-    this.levelTitleTimer = 3.5;
+    this.levelSubtitles[i].show();
+    this.levelTitleTimer = 5;
     if (this.coop?.isHost) this.coop.send({ t: 'level', i });
   }
 
@@ -345,7 +365,10 @@ class Game {
 
     if (this.levelTitleTimer > 0) {
       this.levelTitleTimer -= dt;
-      if (this.levelTitleTimer <= 0) this.levelTitles[this.levelIndex].show(false);
+      if (this.levelTitleTimer <= 0) {
+        this.levelTitles[this.levelIndex].show(false);
+        this.levelSubtitles[this.levelIndex].show(false);
+      }
     }
 
     // Desktop-only: number keys force a creature so the full flow is testable.
@@ -354,6 +377,7 @@ class Game {
       if (this.debugKey('Digit1')) summoned = 'dog';
       if (this.debugKey('Digit2')) summoned = 'bird';
       if (this.debugKey('Digit3')) summoned = 'rabbit';
+      if (this.debugKey('Digit4')) summoned = 'snake';
     }
 
     // A guest only summons through the host; its own hold timer just drives the ring.
@@ -375,13 +399,14 @@ class Game {
       if (!pose.triggered) this.wallPoint.set(-0.35, STAGE.groundY + 0.4, STAGE.z);
       // Both players made the same creature together: a giant duet creature.
       const duet = this.duetMode && this.coop!.partnerCharging === summoned;
-      this.request({ t: 'summon', pose: summoned, x: this.wallPoint.x, y: this.wallPoint.y, duet });
+      const pose2 = this.duetMode ? this.coop!.partnerCharging : null;
+      this.request({ t: 'summon', pose: summoned, pose2, x: this.wallPoint.x, y: this.wallPoint.y, duet });
       return; // the cutscene owns this frame
     }
 
     if (ready) {
       this.levelClock += dt;
-      if (this.levelClock >= HINT_DELAY && !this.hintShown) {
+      if (this.levelClock >= level.hintDelay && !this.hintShown) {
         this.hintShown = true;
         this.hintsUsed++;
         this.hintCycle = 0;
@@ -403,17 +428,18 @@ class Game {
       this.solvedTimer = 0;
       this.hint.show(null);
       sfx.levelComplete();
+      this.fragments.collect(this.levelIndex, this.wallPoint.set(0, STAGE.groundY + 0.5, STAGE.z));
     }
     if (this.solvedTimer >= 0 && this.curtainT < 0) {
       this.solvedTimer += dt;
-      if (this.solvedTimer > SOLVED_LINGER) {
+      if (this.solvedTimer > SOLVED_LINGER + 0.6) {
         const next = this.levelIndex + 1;
         this.runCurtain(() => (next < this.levels.length ? this.enterLevel(next) : this.enterEnd()));
       }
     }
   }
 
-  private doSummon(pose: PoseId, spawn: Vector3, duet: boolean): void {
+  private doSummon(pose: PoseId, spawn: Vector3, duet: boolean, pose2: PoseId | null = null): void {
     sfx.setChime(0);
     sfx.success();
     if (duet) {
@@ -425,9 +451,9 @@ class Game {
     this.hint.show(null);
     this.hintShown = false;
     this.poses.reset();
-    if (!this.level!.summon(pose, spawn, duet)) {
+    if (!this.level!.summon(pose, spawn, duet, pose2)) {
       this.wrongCreatures++;
-      this.levelClock = HINT_DELAY; // show a right shape once it has faded
+      this.levelClock = this.level!.hintDelay; // show a right shape once it has faded
     }
   }
 
@@ -435,7 +461,7 @@ class Game {
     this.level?.exit();
     this.level = undefined;
     this.phase = 'end';
-    const thiefIsFriend = this.levels[0].outcome === 'rabbit';
+    const thiefIsFriend = this.levels.find((l) => l instanceof ThiefLevel)?.outcome === 'rabbit';
     this.finale.show(thiefIsFriend);
     const story = this.levels.map((l) => l.storyLine());
     sfx.fanfare();
@@ -446,16 +472,16 @@ class Game {
       f.mesh.removeFromParent();
       (f.mesh.material as MeshBasicMaterial).map?.dispose();
     }
-    const end = makeText(['The End'], 0.3, { size: 120, weight: '700', letterSpacing: 10 });
-    end.position.set(0, STAGE.titleY + 0.1, STAGE.z);
-    const thanks = makeText(['thanks for playing'], 0.15, { size: 64, italic: true });
-    thanks.position.set(0, STAGE.titleY - 0.12, STAGE.z);
+    const end = makeText(['The light returns'], 0.26, { size: 110, weight: '700', letterSpacing: 6 });
+    end.position.set(0, STAGE.titleY + 0.14, STAGE.z);
+    const thanks = makeText(['The End — thanks for playing'], 0.13, { size: 64, italic: true });
+    thanks.position.set(0, STAGE.titleY - 0.05, STAGE.z);
     // The plot the player's shadows wrote, one line per chapter.
-    const tale = makeText(story, 0.27, { size: 50, italic: true, color: '#ffe9c4' });
-    tale.position.set(0, STAGE.titleY - 0.38, STAGE.z);
+    const tale = makeText(story, 0.4, { size: 50, italic: true, color: '#ffe9c4' });
+    tale.position.set(0, STAGE.titleY - 0.33, STAGE.z);
     const duetNote = this.duets ? `  ·  ${this.duets} duet${this.duets > 1 ? 's' : ''}` : '';
     const stats = makeText([`time ${time}  ·  score ${score}${duetNote}`], 0.15, { size: 60 });
-    stats.position.set(0, STAGE.titleY - 0.62, STAGE.z);
+    stats.position.set(0, STAGE.titleY - 0.63, STAGE.z);
     const again = makeText(['hold an open palm to play again'], 0.16, { size: 52 });
     again.position.set(0, STAGE.groundY - 0.08, STAGE.z);
     const meshes: Mesh[] = [end, thanks, tale, stats, again];
@@ -561,6 +587,8 @@ World.create(
   world.scene.background = new Color(0x050302);
   world.renderer.shadowMap.enabled = true;
   game = new Game(world);
+  // Dev-only handle for automated perf and flow tests (stripped from production builds).
+  if (import.meta.env.DEV) (window as unknown as { __shadowPlay: unknown }).__shadowPlay = { game, world };
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
   setupLobby(world, game);

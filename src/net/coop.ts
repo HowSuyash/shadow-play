@@ -17,7 +17,7 @@ export type CoopRole = 'host' | 'guest';
 /** Game events broadcast by the host (and requests sent by the guest). */
 export type CoopEvent =
   | { t: 'start' }
-  | { t: 'summon'; pose: PoseId; x: number; y: number; duet: boolean }
+  | { t: 'summon'; pose: PoseId; pose2: PoseId | null; x: number; y: number; duet: boolean }
   | { t: 'pause' }
   | { t: 'resume' }
   | { t: 'restart' }

@@ -94,17 +94,29 @@ function combine(...scores: number[]): number {
   return Math.pow(p, 1 / scores.length);
 }
 
+
 // ---------------------------------------------------------------------------
-// Creature poses
+// Creature poses — a small registry so new creatures are one entry each.
 // ---------------------------------------------------------------------------
 
-export type PoseId = 'dog' | 'bird' | 'rabbit';
-export const POSES: readonly PoseId[] = ['dog', 'bird', 'rabbit'];
+export type PoseId = 'dog' | 'bird' | 'rabbit' | 'snake';
 
-/** Confidence above which the hold timer runs. */
-export const POSE_THRESHOLD = 0.6;
-/** Seconds a pose must be held. */
-export const HOLD_SECONDS = 1.0;
+/**
+ * Tunables, exported so they can be adjusted (e.g. from the debug overlay or
+ * a calibration step) without touching the rules.
+ */
+export const POSE_CONFIG = {
+  /** Confidence above which the hold timer runs. */
+  threshold: 0.6,
+  /** Seconds a pose must be held. */
+  holdSeconds: 1.0,
+  /** Bonus the pose that's already charging gets when ranking, so it doesn't flicker to a neighbour. */
+  stickiness: 0.08,
+};
+
+/** Kept for existing imports. */
+export const POSE_THRESHOLD = POSE_CONFIG.threshold;
+export const HOLD_SECONDS = POSE_CONFIG.holdSeconds;
 
 /**
  * DOG — one flat hand, fingers together and extended; thumb raised (ear);
@@ -140,7 +152,27 @@ export function rabbitScore(f: HandFeatures): number {
   );
 }
 
-const tmpA = new Vector3();
+/**
+ * SNAKE — one hand like a cobra's head: all four fingers straight and
+ * pressed together, thumb tucked flat against the side of the hand (the
+ * closed mouth). Differs from DOG (thumb raised, pinky dropped) and from an
+ * open palm (fingers spread).
+ */
+export function snakeScore(f: HandFeatures): number {
+  if (!f.tracked) return 0;
+  const j = f.hand.joints;
+  const tip = j[J.THUMB_TIP];
+  const tuck = Math.min(tip.distanceTo(j[J.INDEX_PROX]), tip.distanceTo(j[J.INDEX_PROX + 1]), tip.distanceTo(j[J.MIDDLE_PROX]));
+  return combine(
+    low(f.curl[1], 0.35, 0.7),
+    low(f.curl[2], 0.35, 0.7),
+    low(f.curl[3], 0.4, 0.75),
+    low(f.curl[4], 0.4, 0.75),
+    low(angleDeg(f.dir[1], f.dir[4]), 16, 32), // fingers together
+    low(angleDeg(f.dir[4], f.dir[3]), 14, 28), // pinky not dropped
+    low(tuck, 0.04, 0.07), // thumb tucked in
+  );
+}
 
 /**
  * BIRD — both hands, fingers spread as wings, thumbs hooked together.
@@ -165,6 +197,20 @@ export function birdScore(l: HandFeatures, r: HandFeatures): number {
   );
 }
 
+/** A creature's hand-shape rule: either one hand (best of left/right) or both hands together. */
+export type PoseDefinition =
+  | { id: PoseId; hands: 'one'; score: (f: HandFeatures) => number }
+  | { id: PoseId; hands: 'two'; score: (l: HandFeatures, r: HandFeatures) => number };
+
+/** Add a creature here (plus its silhouette) and every system picks it up. */
+export const POSE_DEFS: readonly PoseDefinition[] = [
+  { id: 'dog', hands: 'one', score: dogScore },
+  { id: 'bird', hands: 'two', score: birdScore },
+  { id: 'rabbit', hands: 'one', score: rabbitScore },
+  { id: 'snake', hands: 'one', score: snakeScore },
+];
+export const POSES: readonly PoseId[] = POSE_DEFS.map((d) => d.id);
+
 // ---------------------------------------------------------------------------
 // Hold-to-trigger
 // ---------------------------------------------------------------------------
@@ -177,7 +223,7 @@ export class HoldTimer {
   progress = 0;
   private armed = true;
 
-  constructor(private readonly seconds = HOLD_SECONDS) {}
+  constructor(private readonly seconds = POSE_CONFIG.holdSeconds) {}
 
   update(dt: number, active: boolean): boolean {
     if (active && this.armed) {
@@ -209,27 +255,28 @@ export interface PoseResult {
   readonly anchor: Vector3;
 }
 
-/** Evaluates all three creature poses each frame and runs their hold timers. */
+const tmpA = new Vector3();
+
+/** Evaluates every registered creature pose each frame and runs their hold timers. */
 export class PoseDetector {
   readonly left: HandFeatures;
   readonly right: HandFeatures;
-  readonly confidence: Record<PoseId, number> = { dog: 0, bird: 0, rabbit: 0 };
+  readonly confidence = {} as Record<PoseId, number>;
   readonly result: PoseResult = { charging: null, progress: 0, triggered: null, anchor: new Vector3() };
 
-  private readonly timers: Record<PoseId, HoldTimer> = {
-    dog: new HoldTimer(),
-    bird: new HoldTimer(),
-    rabbit: new HoldTimer(),
-  };
-  private readonly anchors: Record<PoseId, Vector3> = {
-    dog: new Vector3(),
-    bird: new Vector3(),
-    rabbit: new Vector3(),
-  };
+  private readonly timers = {} as Record<PoseId, HoldTimer>;
+  private readonly anchors = {} as Record<PoseId, Vector3>;
+  /** The pose that charged last frame (gets the hysteresis bonus). */
+  private sticky: PoseId | null = null;
 
   constructor(left: HandData, right: HandData) {
     this.left = new HandFeatures(left);
     this.right = new HandFeatures(right);
+    for (const p of POSES) {
+      this.confidence[p] = 0;
+      this.timers[p] = new HoldTimer();
+      this.anchors[p] = new Vector3();
+    }
   }
 
   /** Recompute features. Call once per frame before anything reads them. */
@@ -242,27 +289,34 @@ export class PoseDetector {
   update(dt: number, enabled: boolean): PoseResult {
     const L = this.left;
     const R = this.right;
-    const dl = dogScore(L);
-    const dr = dogScore(R);
-    const rl = rabbitScore(L);
-    const rr = rabbitScore(R);
-    this.confidence.dog = Math.max(dl, dr);
-    this.confidence.rabbit = Math.max(rl, rr);
-    this.confidence.bird = birdScore(L, R);
-
-    this.anchors.dog.copy(dl >= dr ? L.palmCenter : R.palmCenter);
-    this.anchors.rabbit.copy(rl >= rr ? L.palmCenter : R.palmCenter);
-    tmpA.addVectors(L.palmCenter, R.palmCenter).multiplyScalar(0.5);
-    this.anchors.bird.copy(tmpA);
+    for (const def of POSE_DEFS) {
+      if (def.hands === 'one') {
+        const l = def.score(L);
+        const r = def.score(R);
+        this.confidence[def.id] = Math.max(l, r);
+        this.anchors[def.id].copy(l >= r ? L.palmCenter : R.palmCenter);
+      } else {
+        this.confidence[def.id] = def.score(L, R);
+        this.anchors[def.id].copy(tmpA.addVectors(L.palmCenter, R.palmCenter).multiplyScalar(0.5));
+      }
+    }
 
     const res = this.result;
     res.triggered = null;
     res.charging = null;
     res.progress = 0;
-    // Only the most confident pose may charge, so overlapping shapes never race.
+    // Only the most confident pose may charge, so overlapping shapes never race;
+    // the one already charging gets a small bonus (hysteresis).
     let best: PoseId | null = null;
+    let bestScore = 0;
     for (const p of POSES) {
-      if (this.confidence[p] > POSE_THRESHOLD && (!best || this.confidence[p] > this.confidence[best])) best = p;
+      const c = this.confidence[p];
+      if (c <= POSE_CONFIG.threshold) continue;
+      const ranked = c + (p === this.sticky ? POSE_CONFIG.stickiness : 0);
+      if (ranked > bestScore) {
+        best = p;
+        bestScore = ranked;
+      }
     }
     for (const p of POSES) {
       const fired = this.timers[p].update(dt, enabled && p === best);
@@ -272,6 +326,7 @@ export class PoseDetector {
         res.charging = p;
       }
     }
+    this.sticky = best;
     if (res.charging) res.anchor.copy(this.anchors[res.charging]);
     return res;
   }

@@ -72,6 +72,10 @@ export class HandShadowCasters {
       this.root.add(mesh);
     }
     this.root.name = 'HandShadowCasters';
+    // Start collapsed: an untouched InstancedMesh is full of identity matrices,
+    // i.e. 1 m spheres around the room origin that would swallow the candle light.
+    for (let i = 0; i < this.bones.count; i++) this.bones.setMatrixAt(i, this.zero);
+    for (let i = 0; i < this.knuckles.count; i++) this.knuckles.setMatrixAt(i, this.zero);
   }
 
   update(hands: HandData[]): void {
