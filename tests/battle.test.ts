@@ -175,3 +175,59 @@ describe('battles', () => {
     expect(b.state).toBe('won');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Weapons in real (captured) hands
+// ---------------------------------------------------------------------------
+
+import fixtures from './fixtures/hands.json';
+import { HandData } from '../src/hands/handData.js';
+import { HandFeatures } from '../src/hands/poseDetector.js';
+import { Blade, Whip } from '../src/battle/weapons.js';
+
+type Fx = { joints: number[][] };
+const shapes = (fixtures as unknown as { shapes: Record<string, { right?: Fx; left?: Fx }> }).shapes;
+
+/** A captured right hand, or its mirror image as a left hand. */
+function rigFrom(name: string, side: 'left' | 'right'): HandRig {
+  const f = shapes[name].right!;
+  const h = new HandData(side);
+  const flat: number[] = [];
+  for (const [x, y, z] of f.joints) flat.push(side === 'left' ? -x : x, y, z);
+  h.setJoints(flat);
+  const feat = new HandFeatures(h);
+  feat.update();
+  const rig = new HandRig(side);
+  rig.fromHand(feat, false, false, DT);
+  return rig;
+}
+
+describe('weapons held in captured hands', () => {
+  it.each(['right', 'left'] as const)('the Hound Blade points up and away from you in the %s hand', (side) => {
+    for (const shape of ['dog', 'fist']) {
+      const rig = rigFrom(shape, side);
+      const blade = new Blade(side);
+      for (let i = 0; i < 40; i++) blade.update(DT, i * DT, rig);
+      const dir = new Vector3().subVectors(blade.tip, rig.pos).normalize();
+      expect(dir.y, `${shape}: up`).toBeGreaterThan(0.3);
+      expect(dir.z, `${shape}: away from the player (−Z)`).toBeLessThan(0.05);
+    }
+  });
+
+  it.each(['right', 'left'] as const)('the Serpent Whip extends away from you in the %s hand', (side) => {
+    const rig = rigFrom('fist', side);
+    const whip = new Whip(side);
+    for (let i = 0; i < 90; i++) whip.update(DT, i * DT, rig);
+    const tip = whip.rope.p[WHIP_SEGMENTS];
+    expect(tip.z).toBeLessThan(rig.pos.z);
+  });
+
+  it('the Moon Shield faces where the open palm faces', () => {
+    const rig = rigFrom('open', 'right');
+    const shield = new Shield('right');
+    for (let i = 0; i < 40; i++) shield.update(DT, i * DT, rig);
+    expect(shield.normal.dot(rig.normal)).toBeGreaterThan(0.99);
+    // An open palm toward the wall: the shield faces the wall (−Z), toward the monsters.
+    expect(shield.normal.z).toBeLessThan(-0.5);
+  });
+});

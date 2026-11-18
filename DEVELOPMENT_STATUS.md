@@ -51,14 +51,14 @@ _Last updated: 19 Nov 2026. The battle update lives on the `battle` branch; `mai
 ## Test results
 
 ```
-npm test   →   Test Files 3 passed · Tests 51 passed
+npm test   →   Test Files 3 passed · Tests 56 passed
 npx tsc --noEmit  →  clean
 npm run build     →  ok
 ```
 
 - `tests/poseDetector.test.ts`: classification on real joints, false positives, features, hold timer, detector timing.
 - `tests/gameplay.test.ts`: every chapter branch, wrong creatures, chapter reset, boss solo and co-op, duel validation and flow, Shadow Memory, progress.
-- `tests/battle.test.ts`: segment maths, whip rope length under wild flicks, hand-rig velocity and grip frame, shape → weapon mapping, a battle from intro to victory, the never-stuck weapon grant, falling and rising again, shield reflection hurting the caster, boss cores persisting after a fall.
+- `tests/battle.test.ts`: segment maths, whip rope length under wild flicks, hand-rig velocity and grip frame, shape → weapon mapping, a battle from intro to victory, the never-stuck weapon grant, falling and rising again, shield reflection hurting the caster, boss cores persisting after a fall, and weapon orientation in captured right hands and mirrored left hands (blade up and away, whip forward, shield facing where the palm faces).
 
 ## Known issues / ideas
 
