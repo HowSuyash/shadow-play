@@ -1,4 +1,4 @@
-import { Color, createSystem, Group, Mesh, MeshBasicMaterial, Vector3, VisibilityState, World } from '@iwsdk/core';
+import { BackSide, Color, createSystem, Group, Mesh, MeshBasicMaterial, SphereGeometry, Vector3, VisibilityState, World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
 import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
@@ -15,6 +15,7 @@ import { GlowHands, PLAYER_COLORS } from './effects/glowHands.js';
 import { Particles } from './effects/particles.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
+import { Worlds, type WorldId } from './scene/worlds.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
 import { Gallery } from './ui/gallery.js';
 import { Lobby } from './ui/lobby.js';
@@ -76,6 +77,14 @@ class Game {
   private creditTexts: Mesh[] = [];
   readonly progress = new Progress();
   readonly particles = new Particles();
+  /** The five 3D worlds surrounding the player. */
+  readonly worlds = new Worlds();
+  /** Head-locked black sphere for comfortable fade-to-world transitions. */
+  private readonly fade = new Mesh(
+    new SphereGeometry(0.25, 16, 12),
+    new MeshBasicMaterial({ color: 0x000000, side: BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }),
+  );
+  private readonly handPoints: Vector3[] = [];
   private partnerGlow: GlowHands | undefined;
   readonly duel: Duel;
   private duelRecorded = false;
@@ -140,7 +149,12 @@ class Game {
     this.nearField.add(this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
     this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.nearField);
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
-    this.room.root.add(this.particles.points);
+    this.room.root.add(this.particles.points, this.worlds.root);
+    this.fade.renderOrder = 1000;
+    this.fade.frustumCulled = false;
+    this.fade.visible = false;
+    world.camera.add(this.fade);
+    this.applyWorld('theatre');
     this.memory = new Memory(this.hint);
     for (const p of POSES) {
       const m = makeText([p.toUpperCase()], 0.17, { size: 72, letterSpacing: 8, color: '#fff1d6' });
@@ -244,6 +258,10 @@ class Game {
     const rp = this.ring.progress;
     if (rp > 0.03 && Math.random() < 0.3 + rp) this.particles.gather(this.ring.target, 0.32, 1);
     this.particles.update(dt);
+    this.handPoints.length = 0;
+    if (this.poses.left.tracked) this.handPoints.push(this.poses.left.palmCenter);
+    if (this.poses.right.tracked) this.handPoints.push(this.poses.right.palmCenter);
+    this.worlds.update(dt, time, this.handPoints);
     this.partnerGlow?.update([this.partnerLeft, this.partnerRight], time);
     this.updateToast(dt);
     this.updateHandsNotice(dt);
@@ -336,6 +354,7 @@ class Game {
     for (const t of [...this.levelTitles, ...this.levelSubtitles, ...this.endTexts]) t.show(false);
     for (const t of this.titleTexts) t.show();
     this.mainMenu.setVisible(true);
+    this.applyWorld('theatre');
     this.phase = 'title';
   }
 
@@ -589,6 +608,17 @@ class Game {
     }
   }
 
+  /** Enter one of the five 3D worlds (called while the screen is dark). */
+  private applyWorld(id: WorldId): void {
+    if (this.worlds.current === id) return;
+    const look = this.worlds.set(id);
+    this.room.setLook(look);
+    this.world.scene.fog = look.fog;
+    sfx.setWorld(id);
+    // Portal flourish on the wall as the new world appears.
+    this.particles.burst(this.wallPoint.set(0, STAGE.groundY + 0.6, STAGE.z), 90, 0.9);
+  }
+
   /** Minimal HUD: the current objective, and the creature you're forming. */
   private updateHud(dt: number, pose: PoseResult): void {
     // Objective: shown in chapters once the title card has faded.
@@ -780,6 +810,7 @@ class Game {
     this.level?.exit();
     this.levelIndex = i;
     this.level = this.levels[i];
+    this.applyWorld(this.level.world);
     this.level.enter();
     this.phase = 'level';
     this.levelClock = 0;
@@ -951,6 +982,7 @@ class Game {
     this.progress.unlock(pose);
     if (pose2) this.progress.unlock(pose2);
     this.flash.fire(spawn);
+    this.worlds.react();
     // The signature moment: the shadow bursts into living sparks.
     this.particles.burst(spawn, duet ? 150 : 80, duet ? 0.8 : 0.5);
     this.ring.set(0);
@@ -969,6 +1001,7 @@ class Game {
     this.phase = 'end';
     const thiefIsFriend = this.levels.find((l) => l instanceof ThiefLevel)?.outcome === 'rabbit';
     this.progress.recordRun(this.runTime);
+    this.applyWorld('sky');
     this.mainMenu.setVisible(true);
     this.finale.show(thiefIsFriend);
     const story = this.levels.map((l) => l.storyLine());
@@ -1011,6 +1044,10 @@ class Game {
       this.curtainAction?.();
       this.curtainAction = undefined;
     }
+    // Fade to black and back around every scene change (comfortable in VR).
+    const fadeK = this.curtainT < CURTAIN ? this.curtainT / CURTAIN : Math.max(0, 1 - (this.curtainT - CURTAIN) / CURTAIN);
+    (this.fade.material as MeshBasicMaterial).opacity = Math.min(1, fadeK * 1.25);
+    this.fade.visible = fadeK > 0.01;
     if (this.curtainT < CURTAIN) this.room.setBrightness(0.25);
     else this.room.setBrightness(this.phase === 'end' ? 1.7 : 1);
     if (this.curtainT >= 2 * CURTAIN) this.curtainT = -1;

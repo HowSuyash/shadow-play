@@ -34,6 +34,7 @@ export class Sfx {
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
     this.startAmbience();
+    this.setWorld(this.world);
   }
 
   private get now(): number {
@@ -102,6 +103,70 @@ export class Sfx {
       setTimeout(crackle, 300 + Math.random() * 1800);
     };
     setTimeout(crackle, 800);
+  }
+
+  private drone: GainNode | undefined;
+  private wind: GainNode | undefined;
+  private windFilter: BiquadFilterNode | undefined;
+  private world = 'theatre';
+
+  /** Per-world soundscape: temple drone, forest crickets, castle depths, sky wind, realm pulse. */
+  setWorld(world: string): void {
+    this.world = world;
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!this.drone) {
+      // Tanpura-like drone: Sa and Pa with slow shimmering beats.
+      this.drone = ctx.createGain();
+      this.drone.gain.value = 0;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 900;
+      lp.connect(this.drone).connect(this.master);
+      for (const f of [130.81, 130.95, 196.0, 261.63]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.value = f > 200 ? 0.18 : 0.3;
+        o.connect(g).connect(lp);
+        o.start();
+      }
+      // Wind: looping filtered noise.
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      src.loop = true;
+      this.windFilter = ctx.createBiquadFilter();
+      this.windFilter.type = 'bandpass';
+      this.windFilter.Q.value = 0.6;
+      this.wind = ctx.createGain();
+      this.wind.gain.value = 0;
+      src.connect(this.windFilter).connect(this.wind).connect(this.master);
+      src.start();
+      const ambient = () => {
+        if (!this.ctx) return;
+        if (this.ctx.state === 'running') {
+          if (this.world === 'forest') for (let k = 0; k < 3; k++) this.tone(4200 + Math.random() * 300, this.now + k * 0.07, 0.04, 'sine', 0.02);
+          if (this.world === 'castle' && Math.random() < 0.5) this.tone(1800 + Math.random() * 600, this.now, 0.25, 'sine', 0.025);
+          if (this.world === 'realm') this.tone(55, this.now, 1.6, 'sine', 0.12);
+        }
+        setTimeout(ambient, 900 + Math.random() * 1600);
+      };
+      setTimeout(ambient, 1200);
+    }
+    const t = ctx.currentTime;
+    const preset: Record<string, [number, number, number]> = {
+      // drone gain, wind gain, wind centre frequency
+      theatre: [0.05, 0.0, 400],
+      forest: [0.0, 0.05, 600],
+      castle: [0.02, 0.06, 250],
+      sky: [0.0, 0.1, 900],
+      realm: [0.015, 0.07, 180],
+    };
+    const [d, w, f] = preset[world] ?? preset.theatre;
+    this.drone.gain.setTargetAtTime(d, t, 1.2);
+    this.wind!.gain.setTargetAtTime(w, t, 1.2);
+    this.windFilter!.frequency.setTargetAtTime(f, t, 1.2);
   }
 
   /** Rising chime tied to a hold-ring's fill (0..1). Call every frame; 0 silences it. */

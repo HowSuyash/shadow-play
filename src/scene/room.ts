@@ -113,6 +113,10 @@ function glowTexture(): CanvasTexture {
  */
 export class Room {
   readonly root = new Group();
+  /** Stone floor, side walls and ceiling: shown only in the Shadow Theatre. */
+  readonly shell = new Group();
+  /** The shadow wall's material, tinted per world. */
+  wallMaterial!: MeshStandardMaterial;
   readonly light: SpotLight;
   /** Candle light position in room-local space (constant). */
   readonly lightPos = CANDLE_FLAME.clone();
@@ -122,6 +126,7 @@ export class Room {
   private readonly glow: Sprite;
   private readonly ambient: HemisphereLight;
   private baseIntensity = 7;
+  private ambientBase = 0.35;
   private brightness = 1;
   private targetBrightness = 1;
   private t = 0;
@@ -132,10 +137,8 @@ export class Room {
     // --- The shadow wall: big, plain, warm plaster stone.
     const wallTex = stoneTexture([196, 176, 150], true, 7);
     wallTex.repeat.set(2.2, 1.5);
-    const wall = new Mesh(
-      new PlaneGeometry(7, 4.5),
-      new MeshStandardMaterial({ map: wallTex, roughness: 0.95, metalness: 0 }),
-    );
+    this.wallMaterial = new MeshStandardMaterial({ map: wallTex, roughness: 0.95, metalness: 0 });
+    const wall = new Mesh(new PlaneGeometry(7, 4.5), this.wallMaterial);
     wall.position.set(0, 2.0, WALL_Z);
     wall.receiveShadow = true;
     this.root.add(wall);
@@ -148,17 +151,18 @@ export class Room {
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, WALL_Z + 2.5);
     floor.receiveShadow = true;
-    this.root.add(floor);
+    this.shell.add(floor);
     for (const side of [-1, 1]) {
       const sideWall = new Mesh(new PlaneGeometry(5, 4.5), rough);
       sideWall.rotation.y = -side * (Math.PI / 2);
       sideWall.position.set(side * 2.6, 2.0, WALL_Z + 2.5);
-      this.root.add(sideWall);
+      this.shell.add(sideWall);
     }
     const ceiling = new Mesh(new PlaneGeometry(7, 5), rough);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, 4.0, WALL_Z + 2.5);
-    this.root.add(ceiling);
+    this.shell.add(ceiling);
+    this.root.add(this.shell);
 
     // --- Candle on a slim iron stand at lap height.
     const iron = new MeshStandardMaterial({ color: 0x2a211b, roughness: 0.6, metalness: 0.5 });
@@ -244,11 +248,20 @@ export class Room {
       0.04 * Math.sin(t * 13.1 + 1.7) +
       0.03 * Math.sin(t * 23.7 + 0.4);
     this.light.intensity = this.baseIntensity * this.brightness * flicker;
-    this.ambient.intensity = 0.35 * (0.7 + 0.3 * this.brightness);
+    this.ambient.intensity = this.ambientBase * (0.7 + 0.3 * this.brightness);
     const sway = 0.0012 * Math.sin(t * 5.1) + 0.0008 * Math.sin(t * 11.3);
     this.flame.position.x = CANDLE_FLAME.x + sway;
     this.flame.scale.y = 2.3 * (0.9 + 0.12 * flicker);
     this.glow.scale.setScalar(0.2 * flicker * Math.sqrt(this.brightness));
+  }
+
+  /** Adopt a world's look: wall tint and ambient light (the shell is replaced by the world). */
+  setLook(look: { wallTint: number; hemiSky: number; hemiGround: number; hemiIntensity: number }): void {
+    this.shell.visible = false;
+    this.wallMaterial.color.set(look.wallTint);
+    this.ambient.color.set(look.hemiSky);
+    this.ambient.groundColor.set(look.hemiGround);
+    this.ambientBase = look.hemiIntensity;
   }
 
   /** Room-local → world helper for objects living outside the room root. */

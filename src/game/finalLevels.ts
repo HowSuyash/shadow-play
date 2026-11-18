@@ -2,6 +2,7 @@ import { Group, Mesh, MeshBasicMaterial, Vector3 } from '@iwsdk/core';
 import { sfx } from '../audio/sfx.js';
 import type { PoseId } from '../hands/poseDetector.js';
 import type { Room } from '../scene/room.js';
+import type { WorldId } from '../scene/worlds.js';
 import { makeBackdrop } from './backdrops.js';
 import { Bird, Dog, Rabbit, Snake } from './creatures.js';
 import { GROUND, lerp, Level, makeGround, together } from './levels.js';
@@ -41,6 +42,7 @@ export class PassageLevel extends Level {
   readonly numeral = 'IV';
   readonly title = 'The Forbidden Passage';
   readonly subtitle = 'The castle is sealed. Only something small and quiet can slip inside.';
+  override readonly world: WorldId = 'castle';
   get objective(): string {
     return 'Open the castle gate  ·  make a SNAKE';
   }
@@ -199,6 +201,7 @@ export class ShadowEaterLevel extends Level {
   readonly numeral = 'V';
   readonly title = 'The Shadow Eater';
   readonly subtitle = 'Four seals guard the stolen light. Break them with all four shadows.';
+  override readonly world: WorldId = 'realm';
   get objective(): string {
     if (this.stage >= this.needs.length) return 'The seals are broken!';
     return `Break seal ${this.stage + 1} of 4  ·  make a ${this.needs[this.stage].toUpperCase()}`;

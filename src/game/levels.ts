@@ -4,6 +4,7 @@ import type { PoseId } from '../hands/poseDetector.js';
 import type { Room } from '../scene/room.js';
 import { STAGE } from '../scene/layout.js';
 import { makeBackdrop } from './backdrops.js';
+import type { WorldId } from '../scene/worlds.js';
 import { Bird, Dog, Dragon, Kitten, makeCandleProp, makeLantern, Rabbit, Snake, Thief, type Silhouette } from './creatures.js';
 import { capsule, circle, ease, ellipse, glow, part, poly, ScriptRunner, shadowMaterial, tween, wait, type Script } from './shapes.js';
 
@@ -48,6 +49,8 @@ export abstract class Level {
   abstract readonly subtitle: string;
   /** Short goal shown on the HUD while the chapter is being played. */
   abstract get objective(): string;
+  /** The 3D world that surrounds the player during this chapter. */
+  readonly world: WorldId = 'theatre';
   /** Seconds before the hand-shape hint appears (short for the tutorial and the boss). */
   readonly hintDelay: number = 8;
   /**
@@ -418,6 +421,7 @@ export class ChasmLevel extends Level {
   readonly numeral = 'I';
   readonly title = 'The First Light';
   readonly subtitle = 'The Shadow Eater stole the light. Your hands hold the old magic.';
+  override readonly world: WorldId = 'sky';
   get objective(): string {
     return 'Bring the lantern across the chasm  ·  BIRD or RABBIT';
   }
@@ -578,6 +582,7 @@ export class WallLevel extends Level {
   readonly numeral = 'III';
   readonly title = 'The Underground Secret';
   readonly subtitle = 'Beneath the roots, a friend is trapped.';
+  override readonly world: WorldId = 'forest';
   get objective(): string {
     return 'Free the kitten behind the wall  ·  RABBIT or BIRD';
   }
