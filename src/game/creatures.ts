@@ -378,6 +378,8 @@ const SNAKE_SEGMENTS = 16;
 export class Snake extends Silhouette {
   private readonly segs: Mesh[] = [];
   private readonly radii: number[] = [];
+  /** Distance of each segment behind the head (spacing follows the taper, so no gaps). */
+  private readonly offsets: number[] = [];
   private readonly head: Group;
   private readonly tongue: Mesh;
   private wave = 0;
@@ -391,8 +393,11 @@ export class Snake extends Silhouette {
     const m = this.mat;
     // One unit disc shared by every body segment, scaled per segment.
     const disc = part([circle(0, 0, 1)], m).geometry;
+    let along = 0.03;
     for (let i = 0; i < SNAKE_SEGMENTS; i++) {
       const r = 0.032 * (1 - (i / SNAKE_SEGMENTS) * 0.8);
+      this.offsets.push(along);
+      along += r * 1.25;
       const seg = new Mesh(disc, m);
       seg.scale.setScalar(r);
       seg.renderOrder = 3;
@@ -424,7 +429,7 @@ export class Snake extends Silhouette {
     const squash = 1 - this.flat * 0.6;
     for (let i = 0; i < SNAKE_SEGMENTS; i++) {
       const r = this.radii[i];
-      const x = -0.03 - i * 0.034;
+      const x = -this.offsets[i];
       // Rearing lifts the front third of the body in a smooth curve.
       const lift = this.rear * Math.max(0, 1 - i / 6) * 0.16;
       const y = r * squash + Math.sin(this.wave - i * 0.65) * amp * (i / SNAKE_SEGMENTS + 0.3) * squash + lift;

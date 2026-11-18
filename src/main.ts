@@ -3,6 +3,8 @@ import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
 import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
+import { ACHIEVEMENTS, Progress } from './game/progress.js';
+import { Duel, type DuelEvent } from './modes/duel.js';
 import { Gestures } from './hands/gestures.js';
 import { HandData, HandTracker } from './hands/handData.js';
 import { POSE_THRESHOLD, POSES, PoseDetector, type PoseId, type PoseResult } from './hands/poseDetector.js';
@@ -11,10 +13,11 @@ import { Coop, type CoopEvent, type CoopRole } from './net/coop.js';
 import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
+import { Gallery } from './ui/gallery.js';
 import { Lobby } from './ui/lobby.js';
-import { Fader, Flash, FragmentBar, Hint, HoldRing, makeText, PauseMenu, projectToWall } from './ui/wallUI.js';
+import { Fader, Flash, FragmentBar, Hint, HoldRing, MainMenu, makeText, PauseMenu, PinchMenu, projectToWall } from './ui/wallUI.js';
 
-type Phase = 'title' | 'level' | 'end';
+type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel';
 
 /** Seconds each alternative answer's hint stays up before switching. */
 const HINT_CYCLE = 4;
@@ -28,7 +31,8 @@ const PARTNER_OFFSET = 0.2;
 const DUET_BONUS = 250;
 
 /**
- * Game state machine: TITLE → LEVEL 1..3 → END. Owns every per-frame
+ * Game state machine: TITLE (main menu) → LEVEL I..V → END, plus GALLERY and
+ * DUEL from the menu, with PAUSE as an overlay. Owns every per-frame
  * subsystem; driven by ShadowPlaySystem below.
  */
 class Game {
@@ -44,6 +48,23 @@ class Game {
   readonly debug = new DebugOverlay();
   readonly finale = new Finale();
   readonly menu = new PauseMenu();
+  readonly mainMenu = new MainMenu();
+  readonly backMenu = new PinchMenu<'back'>('pinch Back · or hold an open palm', [{ id: 'back', label: 'Back' }]);
+  readonly duelMenu = new PinchMenu<'rematch' | 'menu'>('Shadow Duel', [
+    { id: 'rematch', label: 'Rematch' },
+    { id: 'menu', label: 'Menu' },
+  ]);
+  readonly gallery = new Gallery();
+  readonly progress = new Progress();
+  readonly duel: Duel;
+  private duelRecorded = false;
+  /** Set by the system: re-anchor the room to the player's head next frame. */
+  onRecenter: (() => void) | undefined;
+  private toast: Fader | undefined;
+  private toastTimer = 0;
+  /** Per-chapter stats for stars. */
+  private chapterTime = 0;
+  private chapterHinted = false;
   /** Co-op partner's hands, streamed over the network, casting their own shadows. */
   readonly partnerLeft = new HandData('left');
   readonly partnerRight = new HandData('right');
@@ -86,18 +107,21 @@ class Game {
   private readonly wallPoint = new Vector3();
 
   constructor(private readonly world: World) {
-    this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root);
+    this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
+    this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
+    this.wall.add(this.gallery.root, this.duel.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
     const title = makeText(['SHADOW PLAY'], 0.34, { size: 120, letterSpacing: 18, weight: '700' });
     title.position.set(0, STAGE.titleY, STAGE.z);
-    const sub = makeText(['raise your hands to the light'], 0.18, { size: 64, italic: true });
+    const sub = makeText(['Your Hands. Your Shadows. Your World.'], 0.18, { size: 64, italic: true });
     sub.position.set(0, STAGE.titleY - 0.27, STAGE.z);
-    const how = makeText(['hold an open palm toward the wall'], 0.15, { size: 56 });
+    const how = makeText(['raise your hands to the light · hold an open palm to begin'], 0.15, { size: 56 });
     how.position.set(0, STAGE.groundY - 0.05, STAGE.z);
     this.wall.add(title, sub, how);
     this.titleTexts = [new Fader(title, 1.5), new Fader(sub, 1.2), new Fader(how, 1)];
     this.titleTexts.forEach((t) => t.show());
+    this.mainMenu.setVisible(true);
 
     // The story: the Shadow Eater stole the light; five chapters win it back.
     this.levels = [
@@ -133,26 +157,38 @@ class Game {
     const inLevel = this.phase === 'level' && this.level !== undefined;
     const levelReady = inLevel && !this.paused && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
     const canPause = inLevel && !this.paused && this.curtainT < 0;
-    const g = this.gestures.update(dt, this.phase !== 'level' && this.curtainT < 0, canPause);
+    const openPalmPhase = this.phase === 'title' || this.phase === 'end' || this.phase === 'gallery';
+    const g = this.gestures.update(dt, openPalmPhase && this.curtainT < 0, canPause);
     // Co-op "shadow duet": the host's summon only charges while the partner holds a shape too.
     // (If the partner isn't tracking hands yet, e.g. still on the 2D page, play on solo.)
     const partnerInVR = this.partnerLeft.tracked || this.partnerRight.tracked;
     const partnerHolding = !this.duetMode || !partnerInVR || this.coop!.partnerCharging !== null;
-    const pose = this.poses.update(dt, levelReady && (this.isGuest || partnerHolding));
+    const duelOpen = this.phase === 'duel' && this.duel.open && this.curtainT < 0;
+    const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen);
 
     if (this.coop) {
       this.coop.update(dt, this.hands.left, this.hands.right, this.localCharging(), pose.progress);
       this.partnerCasters.update([this.partnerLeft, this.partnerRight]);
     }
 
+    this.collectPinches();
     if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
+    else if (this.phase === 'gallery') this.updateGallery(g.start);
+    else if (this.phase === 'duel') this.updateDuel(pose);
     else if (inLevel && this.paused) this.updatePaused(dt);
     else if (inLevel) this.updateLevel(dt, pose, levelReady, g.pause);
 
     // The shadow world freezes while paused.
     if (!this.paused) this.level?.update(dt, time);
     this.finale.update(dt, time);
-    if (!this.paused) this.menu.update(dt, Game.NONE, Game.NONE); // lets it animate closed
+    // Menus not being driven this frame still animate open/closed.
+    if (!this.paused) this.menu.update(dt, Game.NONE, Game.NONE);
+    if (this.phase !== 'title' && this.phase !== 'end') this.mainMenu.update(dt, Game.NONE, Game.NONE);
+    if (this.phase !== 'gallery') this.backMenu.update(dt, Game.NONE, Game.NONE);
+    if (this.phase !== 'duel') this.duelMenu.update(dt, Game.NONE, Game.NONE);
+    this.gallery.update(dt, time);
+    this.duel.update(dt, time);
+    this.updateToast(dt);
     this.updateCurtain(dt);
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -177,7 +213,146 @@ class Game {
     projectToWall(this.gestures.openPalmAnchor, this.room.lightPos, this.wallPoint);
     this.ring.set(p, this.wallPoint);
     sfx.setChime(p);
-    if (startFired || this.debugKey('Enter')) this.request({ t: 'start' });
+    let choice = this.mainMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
+    if (startFired || this.debugKey('Enter')) choice = 'story';
+    // Desktop-only shortcuts.
+    if (this.debugKey('KeyG')) choice = 'gallery';
+    if (this.debugKey('KeyV')) choice = 'duel';
+    if (choice === 'story') this.request({ t: 'start' });
+    else if (choice === 'duel') this.request({ t: 'mode', mode: 'duel' });
+    else if (choice === 'gallery') this.enterGallery();
+  }
+
+  /** Pinch midpoints of tracked hands, shared by every pinch menu this frame. */
+  private collectPinches(): void {
+    const pts = this.menuPinchPoints;
+    const started = this.menuPinchStarted;
+    pts.length = 0;
+    started.length = 0;
+    if (this.poses.left.tracked) {
+      pts.push(this.gestures.pinchL.point);
+      started.push(this.gestures.pinchL.started);
+    }
+    if (this.poses.right.tracked) {
+      pts.push(this.gestures.pinchR.point);
+      started.push(this.gestures.pinchR.started);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Main menu destinations
+
+  /** Back to the title / main menu (from anywhere). */
+  private enterTitle(): void {
+    if (this.paused) this.resume();
+    this.level?.exit();
+    this.level = undefined;
+    this.finale.hide();
+    this.gallery.hide();
+    this.duel.stop();
+    this.duelMenu.setVisible(false);
+    this.backMenu.setVisible(false);
+    this.fragments.setVisible(false);
+    this.hint.show(null);
+    this.ring.set(0);
+    for (const t of [...this.levelTitles, ...this.levelSubtitles, ...this.endTexts]) t.show(false);
+    for (const t of this.titleTexts) t.show();
+    this.mainMenu.setVisible(true);
+    this.phase = 'title';
+  }
+
+  private enterGallery(): void {
+    sfx.click();
+    this.runCurtain(() => {
+      for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
+      this.finale.hide();
+      this.mainMenu.setVisible(false);
+      this.gallery.show(this.progress);
+      this.backMenu.setVisible(true);
+      this.phase = 'gallery';
+    });
+  }
+
+  private updateGallery(openPalm: boolean): void {
+    let choice = this.backMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
+    if (openPalm || this.debugKey('Escape') || this.debugKey('Enter')) choice = 'back';
+    if (choice === 'back' && this.curtainT < 0) {
+      sfx.click();
+      this.runCurtain(() => this.enterTitle());
+    }
+  }
+
+  private enterDuel(): void {
+    // Decide sides now (not after the curtain) so a guest never misses the host's deal.
+    const versus = !!this.coop?.connected;
+    this.duel.configure(this.coop?.isHost === false && versus ? 'guest' : 'host', versus);
+    this.runCurtain(() => {
+      for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
+      this.level?.exit();
+      this.level = undefined;
+      this.finale.hide();
+      this.gallery.hide();
+      this.mainMenu.setVisible(false);
+      this.backMenu.setVisible(false);
+      this.duelMenu.setVisible(false);
+      this.fragments.setVisible(false);
+      this.phase = 'duel';
+      this.duelRecorded = false;
+      // The host (or a solo player) deals the creatures; a guest waits for them.
+      if (!this.isGuest) this.duel.begin();
+    });
+  }
+
+  private updateDuel(pose: PoseResult): void {
+    const d = this.duel;
+    projectToWall(pose.anchor, this.room.lightPos, this.wallPoint);
+    this.ring.set(d.open ? pose.progress : 0, this.wallPoint);
+    sfx.setChime(d.open ? pose.progress : 0);
+    let hit = pose.triggered;
+    // Desktop-only: number keys stand in for poses.
+    if (this.debugKey('Digit1')) hit = 'dog';
+    if (this.debugKey('Digit2')) hit = 'bird';
+    if (this.debugKey('Digit3')) hit = 'rabbit';
+    if (this.debugKey('Digit4')) hit = 'snake';
+    if (hit && d.open) {
+      this.progress.unlock(hit);
+      d.localHit(hit);
+    }
+    if (d.done) {
+      if (!this.duelRecorded) {
+        this.duelRecorded = true;
+        this.progress.recordDuel(d.localWon);
+        this.duelMenu.setVisible(true);
+      }
+      let choice = this.duelMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
+      if (this.debugKey('Enter')) choice = 'rematch';
+      if (this.debugKey('Escape')) choice = 'menu';
+      if (choice === 'rematch') this.request({ t: 'mode', mode: 'duel' });
+      else if (choice === 'menu') this.request({ t: 'mode', mode: 'menu' });
+    }
+  }
+
+  /** A small celebratory line when an achievement unlocks. */
+  private updateToast(dt: number): void {
+    const fresh = this.progress.takeNew();
+    if (fresh.length) {
+      if (this.toast) {
+        this.toast.mesh.removeFromParent();
+        (this.toast.mesh.material as MeshBasicMaterial).map?.dispose();
+      }
+      const titles = fresh.map((id) => ACHIEVEMENTS[id].title).join(' · ');
+      const m = makeText([`✦ ${titles} ✦`], 0.09, { size: 52, color: '#ffe2a8' });
+      m.position.set(0, STAGE.titleY + 0.3, STAGE.z + 0.004);
+      this.wall.add(m);
+      this.toast = new Fader(m, 2.5).show();
+      this.toastTimer = 3.5;
+      sfx.charm();
+    }
+    if (this.toast) {
+      this.toastTimer -= dt;
+      if (this.toastTimer <= 0) this.toast.show(false);
+      this.toast.update(dt);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -199,7 +374,12 @@ class Game {
   }
 
   /** Apply an event locally; the host also forwards it to the guest. */
-  private apply(e: CoopEvent, broadcast: boolean): void {
+  private apply(e: CoopEvent | DuelEvent, broadcast: boolean): void {
+    // Duel traffic has its own host-validated protocol (never blindly forwarded).
+    if (e.t === 'duel') {
+      this.duel.onEvent(e);
+      return;
+    }
     if (broadcast && this.coop?.isHost) this.coop.send(e);
     switch (e.t) {
       case 'start':
@@ -218,6 +398,12 @@ class Game {
         break;
       case 'restart':
         this.doRestart();
+        break;
+      case 'mode':
+        if (e.mode === 'duel') this.enterDuel();
+        else this.runCurtain(() => this.enterTitle());
+        break;
+      case 'recenter':
         break;
       case 'level':
         // Safety net: keep the guest on the host's chapter.
@@ -267,6 +453,7 @@ class Game {
     this.flash.fire(this.wallPoint);
     this.ring.set(0);
     for (const t of [...this.titleTexts, ...this.endTexts]) t.show(false);
+    this.mainMenu.setVisible(false);
     this.runCurtain(() => this.startRun());
   }
 
@@ -275,11 +462,15 @@ class Game {
     this.hint.show(null);
     this.levelTitles.forEach((t) => t.show(false));
     this.levelSubtitles.forEach((t) => t.show(false));
-    this.runCurtain(() => this.startRun());
+    const i = this.levelIndex;
+    this.runCurtain(() => this.enterLevel(i));
   }
 
   private startRun(): void {
     this.finale.hide();
+    this.gallery.hide();
+    this.duel.stop();
+    this.phase = 'level';
     this.fragments.reset();
     this.fragments.setVisible(true);
     this.runTime = 0;
@@ -303,6 +494,8 @@ class Game {
     this.levelTitles[i].show();
     this.levelSubtitles[i].show();
     this.levelTitleTimer = 5;
+    this.chapterTime = 0;
+    this.chapterHinted = false;
     if (this.coop?.isHost) this.coop.send({ t: 'level', i });
   }
 
@@ -343,12 +536,20 @@ class Game {
     // Desktop-only stand-ins for the pinch buttons.
     if (this.debugKey('KeyP')) choice = 'resume';
     if (this.debugKey('KeyR')) choice = 'restart';
-    if (choice) this.request({ t: choice });
+    if (this.debugKey('Escape')) choice = 'leave';
+    if (choice === 'recenter') {
+      // Local only: each player recentres their own room.
+      this.onRecenter?.();
+      sfx.click();
+      this.request({ t: 'resume' });
+    } else if (choice === 'leave') this.request({ t: 'mode', mode: 'menu' });
+    else if (choice) this.request({ t: choice });
   }
 
   private updateLevel(dt: number, pose: PoseResult, ready: boolean, pauseFired: boolean): void {
     const level = this.level!;
     this.runTime += dt;
+    if (!level.solved) this.chapterTime += dt;
 
     if (pauseFired || this.debugKey('KeyP')) {
       this.request({ t: 'pause' });
@@ -409,6 +610,7 @@ class Game {
       if (this.levelClock >= level.hintDelay && !this.hintShown) {
         this.hintShown = true;
         this.hintsUsed++;
+        this.chapterHinted = true;
         this.hintCycle = 0;
         this.hintIndex = 0;
         this.hint.show(level.solutions[0], level.hintX);
@@ -428,6 +630,8 @@ class Game {
       this.solvedTimer = 0;
       this.hint.show(null);
       sfx.levelComplete();
+      this.progress.recordChapter(level.numeral, Progress.starsFor(this.chapterTime, this.chapterHinted ? 1 : 0));
+      if (level instanceof ThiefLevel && level.outcome === 'rabbit') this.progress.award('kind_heart');
       this.fragments.collect(this.levelIndex, this.wallPoint.set(0, STAGE.groundY + 0.5, STAGE.z));
     }
     if (this.solvedTimer >= 0 && this.curtainT < 0) {
@@ -445,7 +649,10 @@ class Game {
     if (duet) {
       sfx.charm();
       this.duets++;
+      this.progress.award('duet');
     }
+    this.progress.unlock(pose);
+    if (pose2) this.progress.unlock(pose2);
     this.flash.fire(spawn);
     this.ring.set(0);
     this.hint.show(null);
@@ -462,6 +669,8 @@ class Game {
     this.level = undefined;
     this.phase = 'end';
     const thiefIsFriend = this.levels.find((l) => l instanceof ThiefLevel)?.outcome === 'rabbit';
+    this.progress.recordRun(this.runTime);
+    this.mainMenu.setVisible(true);
     this.finale.show(thiefIsFriend);
     const story = this.levels.map((l) => l.storyLine());
     sfx.fanfare();
@@ -482,7 +691,7 @@ class Game {
     const duetNote = this.duets ? `  ·  ${this.duets} duet${this.duets > 1 ? 's' : ''}` : '';
     const stats = makeText([`time ${time}  ·  score ${score}${duetNote}`], 0.15, { size: 60 });
     stats.position.set(0, STAGE.titleY - 0.63, STAGE.z);
-    const again = makeText(['hold an open palm to play again'], 0.16, { size: 52 });
+    const again = makeText(['open palm to play again · or pinch a button'], 0.12, { size: 52 });
     again.position.set(0, STAGE.groundY - 0.08, STAGE.z);
     const meshes: Mesh[] = [end, thanks, tale, stats, again];
     this.wall.add(...meshes);
@@ -509,6 +718,7 @@ class Game {
   }
 
   private describe(): string {
+    if (this.phase === 'duel') return `duel round ${this.duel.round + 1} ${this.duel.open ? 'open' : ''}${this.duel.done ? ' DONE' : ''} score ${this.duel.score.host}-${this.duel.score.guest}`;
     if (this.phase !== 'level' || !this.level) return this.phase;
     const l = this.level;
     return `${this.paused ? 'PAUSED  ' : ''}level ${l.numeral} "${l.title}"${l.busy ? ' (cutscene)' : ''}${l.solved ? ' SOLVED' : ''}  clock ${this.levelClock.toFixed(1)}s`;
@@ -535,6 +745,7 @@ class ShadowPlaySystem extends createSystem({}) {
 
   update(delta: number, time: number): void {
     if (!game) return;
+    if (!game.onRecenter) game.onRecenter = () => (this.anchoredSession = undefined);
     this.anchorRoom();
     game.update(Math.min(delta, 0.1), time);
   }

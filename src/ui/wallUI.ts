@@ -414,17 +414,17 @@ export class Hint {
 }
 
 // ---------------------------------------------------------------------------
-// Near-field pause menu (pinch buttons)
+// Near-field pinch menus (main menu, pause, duel, gallery)
 // ---------------------------------------------------------------------------
 
-function buttonTexture(label: string, hot: boolean): CanvasTexture {
+function buttonTexture(label: string, hot: boolean, accent: string): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 320;
   c.height = 320;
   const ctx = c.getContext('2d')!;
   const g = ctx.createRadialGradient(160, 140, 20, 160, 160, 150);
   g.addColorStop(0, hot ? '#ffe9b8' : '#e9cf9c');
-  g.addColorStop(1, hot ? '#f0a54e' : '#a8774a');
+  g.addColorStop(1, hot ? accent : '#a8774a');
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(160, 160, 150, 0, Math.PI * 2);
@@ -433,7 +433,8 @@ function buttonTexture(label: string, hot: boolean): CanvasTexture {
   ctx.strokeStyle = hot ? '#fff3d6' : '#5a3a20';
   ctx.stroke();
   ctx.fillStyle = '#2b1709';
-  ctx.font = `700 58px ${FONT}`;
+  const size = label.length > 8 ? 44 : label.length > 6 ? 52 : 60;
+  ctx.font = `700 ${size}px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, 160, 150);
@@ -444,39 +445,46 @@ function buttonTexture(label: string, hot: boolean): CanvasTexture {
   return t;
 }
 
-export type MenuChoice = 'resume' | 'restart';
+export interface MenuItem<T extends string> {
+  id: T;
+  label: string;
+}
 
-/** Two big round buttons floating ~36 cm in front of the player. */
-export class PauseMenu {
+/**
+ * A row of big round buttons floating ~36 cm in front of the player, well
+ * inside seated reach. Pinch (thumb tip to index tip) near a button to press it.
+ */
+export class PinchMenu<T extends string> {
   readonly root = new Group();
-  private readonly buttons: { id: MenuChoice; mesh: Mesh; normal: CanvasTexture; hot: CanvasTexture; pos: Vector3 }[] = [];
+  private readonly buttons: { id: T; mesh: Mesh; normal: CanvasTexture; hot: CanvasTexture; pos: Vector3 }[] = [];
   private readonly title: Mesh;
-  hovered: MenuChoice | null = null;
+  private readonly radius: number;
+  hovered: T | null = null;
   private appear = 0;
   private visibleTarget = false;
 
-  constructor() {
+  constructor(title: string, items: MenuItem<T>[], accent = '#f0a54e') {
     this.root.position.copy(MENU.center);
     // Tilt to face the eyes (which are above and behind the menu).
     this.root.rotation.x = -0.45;
-    const defs: [MenuChoice, string, number][] = [
-      ['resume', 'Resume', -MENU.buttonOffsetX],
-      ['restart', 'Restart', MENU.buttonOffsetX],
-    ];
-    for (const [id, label, x] of defs) {
-      const normal = buttonTexture(label, false);
-      const hot = buttonTexture(label, true);
+    const n = items.length;
+    const size = n <= 2 ? 0.17 : n === 3 ? 0.14 : 0.115;
+    const spacing = n <= 2 ? MENU.buttonOffsetX * 2 : size + 0.018;
+    this.radius = Math.min(MENU.buttonRadius, spacing * 0.55);
+    items.forEach((item, i) => {
+      const normal = buttonTexture(item.label, false, accent);
+      const hot = buttonTexture(item.label, true, accent);
       const mesh = new Mesh(
-        new PlaneGeometry(0.17, 0.17),
+        new PlaneGeometry(size, size),
         new MeshBasicMaterial({ map: normal, transparent: true, toneMapped: false }),
       );
-      mesh.position.set(x, 0, 0);
+      mesh.position.set((i - (n - 1) / 2) * spacing, 0, 0);
       mesh.renderOrder = 10;
       this.root.add(mesh);
-      this.buttons.push({ id, mesh, normal, hot, pos: new Vector3() });
-    }
-    this.title = makeText(['Paused'], 0.06, { size: 64 });
-    this.title.position.set(0, 0.13, 0);
+      this.buttons.push({ id: item.id, mesh, normal, hot, pos: new Vector3() });
+    });
+    this.title = makeText([title], 0.06, { size: 64 });
+    this.title.position.set(0, size / 2 + 0.05, 0);
     this.root.add(this.title);
     this.root.visible = false;
   }
@@ -498,7 +506,7 @@ export class PauseMenu {
    * @param pinchStarted matching flags: pinch closed this frame
    * @returns the button pressed this frame, if any
    */
-  update(dt: number, pinchPoints: Vector3[], pinchStarted: boolean[]): MenuChoice | null {
+  update(dt: number, pinchPoints: Vector3[], pinchStarted: boolean[]): T | null {
     this.appear = Math.max(0, Math.min(1, this.appear + (this.visibleTarget ? dt * 4 : -dt * 6)));
     this.root.visible = this.appear > 0;
     this.root.scale.setScalar(0.6 + 0.4 * this.appear);
@@ -507,14 +515,14 @@ export class PauseMenu {
       return null;
     }
     this.root.updateMatrixWorld(true);
-    let pressed: MenuChoice | null = null;
+    let pressed: T | null = null;
     this.hovered = null;
     for (const b of this.buttons) {
       // Button centre in room space (root is a child of the room).
       b.pos.copy(b.mesh.position).applyMatrix4(this.root.matrix);
       let hot = false;
       for (let i = 0; i < pinchPoints.length; i++) {
-        if (pinchPoints[i].distanceTo(b.pos) < MENU.buttonRadius) {
+        if (pinchPoints[i].distanceTo(b.pos) < this.radius) {
           hot = true;
           if (pinchStarted[i] && this.appear > 0.9) pressed = b.id;
         }
@@ -529,6 +537,39 @@ export class PauseMenu {
       b.mesh.scale.setScalar(hot ? 1.12 : 1);
     }
     return pressed;
+  }
+
+  /** Room-space centre of a button (for tests and the emulator). */
+  buttonPosition(id: T, out: Vector3): Vector3 {
+    const b = this.buttons.find((x) => x.id === id);
+    this.root.updateMatrixWorld(true);
+    return b ? out.copy(b.mesh.position).applyMatrix4(this.root.matrix) : out.set(0, 0, 0);
+  }
+}
+
+export type PauseChoice = 'resume' | 'restart' | 'recenter' | 'leave';
+
+/** Pause: Resume / Restart chapter / Recenter / Leave to the menu. */
+export class PauseMenu extends PinchMenu<PauseChoice> {
+  constructor() {
+    super('Paused', [
+      { id: 'resume', label: 'Resume' },
+      { id: 'restart', label: 'Restart' },
+      { id: 'recenter', label: 'Recenter' },
+      { id: 'leave', label: 'Leave' },
+    ]);
+  }
+}
+
+export type MainChoice = 'story' | 'duel' | 'gallery';
+
+export class MainMenu extends PinchMenu<MainChoice> {
+  constructor() {
+    super('pinch to choose · or hold an open palm to begin', [
+      { id: 'story', label: 'Story' },
+      { id: 'duel', label: 'Duel' },
+      { id: 'gallery', label: 'Gallery' },
+    ]);
   }
 }
 

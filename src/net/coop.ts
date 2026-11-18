@@ -1,6 +1,7 @@
 import { joinRoom, type Room } from 'trystero';
 import { JOINT_COUNT, type HandData } from '../hands/handData.js';
 import { POSES, type PoseId } from '../hands/poseDetector.js';
+import type { DuelEvent } from '../modes/duel.js';
 
 /**
  * Online two-player co-op without a game server.
@@ -21,7 +22,10 @@ export type CoopEvent =
   | { t: 'pause' }
   | { t: 'resume' }
   | { t: 'restart' }
-  | { t: 'level'; i: number };
+  | { t: 'level'; i: number }
+  | { t: 'mode'; mode: 'duel' | 'menu' }
+  | { t: 'recenter' }
+  | DuelEvent;
 
 const APP_ID = 'shadow-play-quest-coop-v1';
 /**
