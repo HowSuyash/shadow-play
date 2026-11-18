@@ -17,6 +17,10 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 | Online co-op: room code, partner hand shadows, host-authoritative sync, duet rule | ✅ connection and sync | Two isolated headless browsers over the real public relays: connect, start, summon, chapter change and pause all stay in sync |
 | Shadow Memory (solo, per headset) | ✅ | Unit tests (grow on success, lives, replay, game over); headless run |
 | Controllers detected → "put your controllers down" notice | ✅ | Emulator in controller mode |
+| HUD: objective line + detected-creature label | ✅ | Emulator screenshot (DOG label over the filling ring) |
+| Lobby: six-character codes, Copy invite link, player slots | ✅ | Two-browser test joins via the `?room=` link; screenshot |
+| Settings (sound, effects; saved) and Credits | ✅ | Emulator: pinch Settings → Sound cycles and persists |
+| Shadow Dragon (legendary unlock: finale + gallery) | ✅ | Full headless playthrough to the ending |
 | Progress, stars, achievements | ✅ | Unit tests; gallery shows them |
 | Transformation particles, dust, partner glow avatar | ✅ | Screenshots; 60 fps (display cap) on an integrated AMD GPU at 1000×620 |
 | Deploy: GitHub Pages via Actions (typecheck → tests → build), Vercel config | ✅ | Live at https://howsuyash.github.io/shadow-play/ |
@@ -30,10 +34,10 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 ## Deliberate scope decisions (deadline)
 
 - **No dedicated game server.** Co-op is serverless peer-to-peer with host authority and host-side validation of duel claims. A Colyseus/Socket.IO server would need paid hosting and credentials, and GitHub Pages can't run one. Moving to a server later only means replacing `src/net/coop.ts` with the same `send` / `onEvent` interface.
-- **Room codes are 4 digits** (with `?room=` links), not 6 characters, so they can be typed on a big pinch keypad in VR.
+- **Room codes are six digits** (six characters, digits only), so they can be typed on a big pinch keypad in VR.
 - **Of the competitive and party ideas, Gesture Challenge (duel, networked) and Shadow Memory (solo) are built.** Not built: Shadow Race, Battle, Soccer, Survival, and the Party mode.
 - **No separate lobby "ready" step:** in co-op the game starts when either player chooses Story or Duel.
-- **No settings screen** (audio and effects levels). Recenter is in the pause menu.
+- **Settings covers sound and effects only.** Recenter is in the pause menu.
 - **Gesture calibration is via tunable thresholds** (`POSE_CONFIG`), not an in-game calibration flow.
 - **Environments are stylised silhouette backdrops** on the shadow wall (village, forest, castle, moon and islands), not separate 3D rooms. This keeps the single-wall shadow-theatre concept and the frame budget.
 

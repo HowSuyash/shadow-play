@@ -447,6 +447,96 @@ export class Snake extends Silhouette {
 }
 
 // ---------------------------------------------------------------------------
+
+const DRAGON_SEGMENTS = 18;
+
+/**
+ * The legendary Shadow Dragon: awakened by defeating the Shadow Eater.
+ * A long serpentine body rippling through the air, horned head, and two
+ * great bat wings that beat slowly.
+ */
+export class Dragon extends Silhouette {
+  private readonly segs: Mesh[] = [];
+  private readonly radii: number[] = [];
+  private readonly offsets: number[] = [];
+  private readonly head: Group;
+  private readonly jaw: Group;
+  private readonly wings: Group[] = [];
+  private wave = 0;
+
+  constructor() {
+    super(1.5);
+    const m = this.mat;
+    const disc = part([circle(0, 0, 1)], m).geometry;
+    let along = 0.05;
+    for (let i = 0; i < DRAGON_SEGMENTS; i++) {
+      const r = 0.042 * (1 - (i / DRAGON_SEGMENTS) * 0.85);
+      const seg = new Mesh(disc, m);
+      seg.renderOrder = 3;
+      this.segs.push(seg);
+      this.radii.push(r);
+      this.offsets.push(along);
+      along += r * 1.3;
+      this.root.add(seg);
+    }
+    // Spiked tail tip.
+    this.segs[DRAGON_SEGMENTS - 1].add(part([poly([0, 0, -2.5, 1.6, -3.2, 0, -2.5, -1.6])], m));
+    this.jaw = pivot(0.02, -0.012, part([poly([0, 0, 0.09, -0.01, 0.1, -0.025, 0.0, -0.022])], m));
+    this.head = pivot(
+      0,
+      0,
+      part(
+        [
+          withHole(ellipse(0.03, 0.005, 0.07, 0.035, 0.1), 0.055, 0.018, 0.009, 0.006),
+          poly([0.06, 0.0, 0.13, -0.008, 0.12, 0.014, 0.06, 0.03]), // snout
+          poly([-0.01, 0.03, 0.01, 0.035, -0.07, 0.1]), // horns
+          poly([0.02, 0.03, 0.04, 0.032, -0.02, 0.11]),
+          poly([-0.035, -0.005, -0.06, 0.04, -0.03, 0.02]), // frill
+        ],
+        m,
+      ),
+    );
+    this.head.add(this.jaw);
+    this.root.add(this.head);
+    // Two membranous wings anchored behind the head.
+    const wing = () =>
+      part(
+        [
+          poly([0, 0, -0.04, 0.12, -0.12, 0.3, -0.18, 0.26, -0.2, 0.18, -0.26, 0.17, -0.26, 0.09, -0.31, 0.06, -0.2, 0.01]),
+          capsule(0, 0, -0.12, 0.3, 0.012),
+        ],
+        m,
+      );
+    for (let k = 0; k < 2; k++) {
+      const w = pivot(0, 0, wing());
+      this.wings.push(w);
+      this.root.add(w);
+    }
+  }
+
+  protected animate(dt: number, time: number): void {
+    this.wave += dt * 3.2;
+    for (let i = 0; i < DRAGON_SEGMENTS; i++) {
+      const r = this.radii[i];
+      const y = Math.sin(this.wave - i * 0.5) * 0.04 * (0.3 + i / DRAGON_SEGMENTS);
+      this.segs[i].position.set(-this.offsets[i], y, 0);
+      this.segs[i].scale.set(r, r, 1);
+    }
+    const neck = this.segs[0].position;
+    this.head.position.set(0.03, neck.y + 0.01, 0);
+    this.head.rotation.z = Math.sin(this.wave * 0.5) * 0.08;
+    this.jaw.rotation.z = -Math.max(0, Math.sin(time * 1.7)) * 0.35;
+    // Slow, heavy wing beats; the far wing lags behind.
+    const anchor = this.segs[3].position;
+    this.wings.forEach((w, k) => {
+      w.position.set(anchor.x + k * 0.03, anchor.y + 0.02, 0);
+      w.scale.y = 0.15 + 0.95 * Math.sin(time * 3 - k * 0.5);
+      w.scale.x = k ? 0.85 : 1;
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 

@@ -36,17 +36,22 @@ The Shadow Eater has stolen the light of the Shadow Kingdom, and your hands hold
 | **IV · The Forbidden Passage** | The castle gate is sealed | 🐍 Snake slips through a crack, strikes the lever, and the portcullis rises | — |
 | **V · The Shadow Eater** | Four seals guard the caged light | 🐕 distracts · 🐦 reaches the platform · 🐇 digs to the hidden switch · 🐍 breaks the last seal | in co-op, two different creatures break two seals at once |
 
+Defeating the Shadow Eater awakens the legendary **Shadow Dragon**, which soars over the ending and joins your gallery.
+
 **Your shadows write the story.** The branches lead to different outcomes and a different cast at the finale, and the ending recaps *your* tale, one line per chapter, with your time and score. If you're stuck, shadow pictures of shapes that would work appear on the wall (after 4 s in the tutorial, 8 s in chapters II–IV, 2.5 s in the boss fight). A creature that doesn't fit the scene looks around, puzzled, and fades away.
 
 ## Modes
 
-The main menu floats about 36 cm in front of you as big round buttons. **Pinch** (thumb tip to index tip) on one to choose it, or just hold an open palm toward the wall to begin the story.
+The main menu floats about 36 cm in front of you as two rows of big round buttons (**Story · Duel · Memory / Gallery · Settings · Credits**). **Pinch** (thumb tip to index tip) on one to choose it, or just hold an open palm toward the wall to begin the story.
 
 - **Story:** the five chapters above.
 - **Shadow Duel (Gesture Challenge):** a creature appears, and the first to form its shadow wins the round; best of five. Solo, you race the clock. With a partner, you race each other, with a scoreboard, a winner screen, rematch, and the match history for this session.
 - **Shadow Memory:** the wall shows a sequence of creatures, each with its hand shape and its own note. Repeat it with your hands. It starts at 3, grows by one each time you succeed, and three mistakes end the game. Played on your own headset, even in a co-op room.
 - **Creature Gallery:** all four creatures alive on the wall (still-locked ones are dimmed), what each can do and how to make it, chapter stars (★★★ = no hint and under 40 s), your best story time, duel record, best Memory length and 9 achievements. Saved on the device.
+- **Settings:** sound (High/Low/Off) and effects (Full/Low/Off), saved on the device. **Credits** shows who made it and with what.
 - **Play together (online co-op):** see below.
+
+While you play, a one-line **objective** sits at the top of the wall, and the name of the creature you're forming appears above the ring as it fills.
 
 ### Hands-only controls
 
@@ -62,8 +67,8 @@ Opening the Quest system menu also pauses the game.
 
 ## Play together (online co-op)
 
-1. On the start page, tap **Play together → Host a room** to get a 4-digit code (a `?room=1234` link fills it in for your partner).
-2. Your partner taps **Play together → Join a room** on their own Quest and types the code on the big keypad.
+1. On the start page, tap **Play together → Host a room** to get a **six-character room code**. **Copy invite link** gives you a `?room=` link that fills the code in for your partner, and player slots show when they've joined.
+2. Your partner taps **Play together → Join a room** on their own Quest and types the code on the big keypad (or opens your link).
 3. Both of you face the same wall. Your partner appears as a pair of glowing hands in their player colour (host gold, guest violet) with a name tag beside you, and **their hand shadow falls on your wall**.
 
 **Shadow duet:** in co-op, a creature only comes alive when **both** of you hold a shape at the same time; the ring fills only while you're both holding. Make the **same** creature together and you summon a **giant** one for a bonus. In the boss fight, two **different** creatures break two seals at once. Shadow Duel becomes a head-to-head race. Either player can pause, and it pauses for both. If your partner leaves, you carry on solo.
@@ -93,7 +98,7 @@ To try it on a Quest, open the network URL that `npx @iwsdk/cli dev status` prin
 | Key | Action |
 |---|---|
 | `Enter` | Start the story / rematch |
-| `G` / `V` / `M` | Open the Gallery / a Duel / Shadow Memory from the menu |
+| `G` / `V` / `M` / `C` | Open the Gallery / a Duel / Shadow Memory / Credits from the menu |
 | `1` `2` `3` `4` | Force Dog / Bird / Rabbit / Snake (summon, or duel answer) |
 | `P` | Pause / resume (`R` restarts the chapter, `Esc` leaves) |
 | `D` or `` ` `` | Debug overlay: live per-finger curl, palm normals, every pose and gesture confidence, the hold timer |

@@ -16,6 +16,8 @@ export interface ProgressData {
   duelPlayed: number;
   /** Longest Shadow Memory sequence completed. */
   memoryBest: number;
+  /** The legendary Shadow Dragon (finish the story). */
+  legendary: boolean;
   achievements: string[];
 }
 
@@ -29,12 +31,13 @@ export const ACHIEVEMENTS: Record<string, { title: string; text: string }> = {
   duelist: { title: 'Duelist', text: 'Win a Shadow Duel.' },
   flawless: { title: 'Flawless', text: 'Earn three stars on every chapter.' },
   memory: { title: 'Long Memory', text: 'Remember six shadows in a row.' },
+  dragon: { title: 'Shadow Dragon', text: 'Defeat the Shadow Eater and awaken the dragon.' },
 };
 
 const KEY = 'shadow-play-progress-v1';
 
 function blank(): ProgressData {
-  return { unlocked: [], stars: {}, bestRun: null, duelWins: 0, duelPlayed: 0, memoryBest: 0, achievements: [] };
+  return { unlocked: [], stars: {}, bestRun: null, duelWins: 0, duelPlayed: 0, memoryBest: 0, legendary: false, achievements: [] };
 }
 
 export class Progress {
@@ -86,6 +89,8 @@ export class Progress {
   recordRun(seconds: number): void {
     this.data.bestRun = this.data.bestRun === null ? seconds : Math.min(this.data.bestRun, seconds);
     this.award('storyteller');
+    this.data.legendary = true;
+    this.award('dragon');
     if (seconds < 240) this.award('swift');
     this.save();
   }

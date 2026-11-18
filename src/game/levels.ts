@@ -4,7 +4,7 @@ import type { PoseId } from '../hands/poseDetector.js';
 import type { Room } from '../scene/room.js';
 import { STAGE } from '../scene/layout.js';
 import { makeBackdrop } from './backdrops.js';
-import { Bird, Dog, Kitten, makeCandleProp, makeLantern, Rabbit, Snake, Thief, type Silhouette } from './creatures.js';
+import { Bird, Dog, Dragon, Kitten, makeCandleProp, makeLantern, Rabbit, Snake, Thief, type Silhouette } from './creatures.js';
 import { capsule, circle, ease, ellipse, glow, part, poly, ScriptRunner, shadowMaterial, tween, wait, type Script } from './shapes.js';
 
 export const GROUND = STAGE.groundY;
@@ -777,7 +777,9 @@ export class Finale {
   /** Only joins the circle if the rabbit befriended him in chapter I. */
   private readonly thief = new Thief();
   private readonly snake = new Snake();
-  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten, this.thief, this.snake];
+  /** The legendary Shadow Dragon, awakened by the Shadow Eater's defeat. */
+  private readonly dragon = new Dragon();
+  private readonly actors: Silhouette[] = [this.dog, this.bird, this.rabbit, this.kitten, this.thief, this.snake, this.dragon];
   private t = 0;
 
   constructor() {
@@ -792,6 +794,7 @@ export class Finale {
     this.root.visible = true;
     this.thief.root.position.set(-2.0, GROUND, 0.001);
     this.snake.root.position.set(2.0, GROUND, 0.002);
+    this.dragon.root.position.set(-2.6, GROUND + 1.25, 0.004);
     this.dog.root.position.set(-1.6, GROUND, 0.002);
     this.rabbit.root.position.set(1.6, GROUND, 0.002);
     this.kitten.root.position.set(1.8, GROUND, 0.002);
@@ -825,6 +828,11 @@ export class Finale {
     this.snake.root.position.x = lerp(2.0, 1.75, k);
     this.snake.facing = -1;
     this.snake.rear = 0.6 + 0.2 * Math.sin(time * 1.3);
+    // The dragon sweeps across the sky in a slow loop.
+    const loop = (this.t * 0.42) % 5.6;
+    this.dragon.root.position.x = -2.6 + loop;
+    this.dragon.root.position.y = GROUND + 1.16 + Math.sin(this.t * 0.9) * 0.06;
+    this.dragon.facing = 1;
     this.kitten.facing = -1;
     this.kitten.sad = false;
     // The bird circles above everyone.

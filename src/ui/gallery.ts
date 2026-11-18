@@ -1,7 +1,7 @@
 import { Group, Mesh, MeshBasicMaterial } from '@iwsdk/core';
 import type { PoseId } from '../hands/poseDetector.js';
 import { STAGE } from '../scene/layout.js';
-import { Bird, Dog, Rabbit, Snake, type Silhouette } from '../game/creatures.js';
+import { Bird, Dog, Dragon, Rabbit, Snake, type Silhouette } from '../game/creatures.js';
 import { makeGround } from '../game/levels.js';
 import { ACHIEVEMENTS, type Progress } from '../game/progress.js';
 import { makeText } from './wallUI.js';
@@ -23,6 +23,9 @@ export class Gallery {
     snake: new Snake(),
   };
   private readonly order: PoseId[] = ['dog', 'bird', 'rabbit', 'snake'];
+  /** Legendary: flies above the others once the story is finished. */
+  private readonly dragon = new Dragon();
+  private t = 0;
   private texts: Mesh[] = [];
 
   constructor() {
@@ -37,6 +40,8 @@ export class Gallery {
       this.root.add(c.root);
     });
     (this.creatures.bird as Bird).flapping = true;
+    this.dragon.root.position.set(-2.4, STAGE.titleY + 0.42, 0.003);
+    this.root.add(this.dragon.root);
   }
 
   show(progress: Progress): void {
@@ -64,6 +69,7 @@ export class Gallery {
       add(makeText([info.how], 0.06, { size: 44, italic: true, color: '#e8c48f' }), x, STAGE.groundY - 0.08);
     });
     const d = progress.data;
+    this.dragon.fade(d.legendary ? 1 : 0.15, true);
     const stars = ['I', 'II', 'III', 'IV', 'V']
       .map((n) => `${n} ${'★'.repeat(d.stars[n] ?? 0)}${'☆'.repeat(3 - (d.stars[n] ?? 0))}`)
       .join('   ');
@@ -84,5 +90,9 @@ export class Gallery {
     if (!this.root.visible) return;
     for (const p of this.order) this.creatures[p].update(dt, time);
     (this.creatures.snake as Snake).rear = 0.5 + 0.3 * Math.sin(time * 1.2);
+    this.t += dt;
+    this.dragon.root.position.x = -2.4 + ((this.t * 0.35) % 4.8);
+    this.dragon.facing = 1;
+    this.dragon.update(dt, time);
   }
 }
