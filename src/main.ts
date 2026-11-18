@@ -45,6 +45,7 @@ class Game {
   readonly poses = new PoseDetector(this.hands.left, this.hands.right);
   readonly gestures = new Gestures(this.poses.left, this.poses.right);
   readonly wall = new Group();
+  readonly nearField = new Group();
   readonly ring = new HoldRing();
   readonly flash = new Flash();
   readonly hint = new Hint();
@@ -121,11 +122,13 @@ class Game {
   private readonly wallPoint = new Vector3();
 
   constructor(private readonly world: World) {
-    this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
+    // Near-field pinch menus only make sense with tracked hands, i.e. inside VR.
+    this.nearField.add(this.menu.root, this.mainMenu.root, this.backMenu.root, this.duelMenu.root);
+    this.room.root.add(this.casters.root, this.partnerCasters.root, this.wall, this.nearField);
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
     this.room.root.add(this.particles.points);
     this.memory = new Memory(this.hint);
-    this.room.root.add(this.memoryMenu.root);
+    this.nearField.add(this.memoryMenu.root);
     this.wall.add(this.gallery.root, this.duel.root, this.memory.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
@@ -168,6 +171,7 @@ class Game {
 
   update(dt: number, time: number): void {
     this.lastDt = dt;
+    this.nearField.visible = !!this.world.session;
     this.hands.update(this.world, this.room.root);
     this.casters.update([this.hands.left, this.hands.right]);
     this.poses.updateFeatures();
