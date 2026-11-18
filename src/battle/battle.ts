@@ -261,6 +261,35 @@ export class Battle implements ArenaCtx {
     return this.def !== undefined;
   }
 
+  private warm: Group | undefined;
+  /**
+   * Compile every monster, weapon, rift and orb shader once, while the screen
+   * is dark, so nothing hitches the first time it appears (summoning a
+   * weapon is the big moment; it must be smooth).
+   */
+  prewarm(compile: (o: Object3D) => void): void {
+    if (this.warm) return;
+    const g = new Group();
+    for (const k of ['imp', 'wraith', 'brute', 'boss'] as MonsterKind[]) g.add(makeMonster(k).root);
+    for (const id of ['blade', 'firebird', 'shield', 'whip'] as const) {
+      const w = makeWeapon(id, 'right');
+      w.root.visible = true;
+      g.add(w.root);
+      if (w instanceof Blade) g.add(w.trail.mesh);
+      if (w instanceof Whip) w.attach(g);
+    }
+    g.add(new Rift(new Vector3(), new Vector3(0, 0, 1)).root, makeFirebird().root, makeCreature('dog').root);
+    const orb = new Mesh(new SphereGeometry(0.07, 12, 8), glowMat(0xe8d8ff));
+    orb.add(halo(0x8c5cff, 0.4, 0.95));
+    g.add(orb);
+    g.position.set(0, -50, 0);
+    this.root.add(g);
+    compile(g);
+    // Keep it (hidden) so the compiled programs stay cached.
+    g.visible = false;
+    this.warm = g;
+  }
+
   // -------------------------------------------------------------------------
   // Lifecycle
 

@@ -1250,6 +1250,11 @@ class Game {
     this.battle.desktop = !this.world.session && !this.handTest;
     this.battle.onAchievement = (id) => this.progress.award(id);
     this.battle.start(i);
+    try {
+      this.battle.prewarm(() => this.world.renderer.compile(this.world.scene, this.world.camera));
+    } catch (e) {
+      console.warn('[shadow-play] shader prewarm skipped', e);
+    }
   }
 
   private exitBattle(): void {

@@ -32,7 +32,7 @@ export const WEAPON_OF: Record<PoseId, WeaponId> = { dog: 'blade', bird: 'firebi
 export const WEAPON_INFO: Record<WeaponId, { name: string; color: number; how: string }> = {
   blade: { name: 'Hound Blade', color: 0xffb347, how: 'swing it through a monster' },
   firebird: { name: 'Firebird', color: 0xff7a2a, how: 'pinch or flick your hand to throw it' },
-  shield: { name: 'Moon Shield', color: 0xbfe3ff, how: 'block a shadow orb and it flies back at its caster · bash monsters' },
+  shield: { name: 'Moon Shield', color: 0xbfe3ff, how: 'hold your palm out toward them: a blocked orb flies back at its caster · shove to bash' },
   whip: { name: 'Serpent Whip', color: 0x9dff7a, how: 'flick your wrist to crack it' },
 };
 
