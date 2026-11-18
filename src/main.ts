@@ -360,7 +360,9 @@ class Game {
     if (this.debugKey('KeyV')) choice = 'duel';
     if (this.debugKey('KeyM')) choice = 'memory';
     if (this.debugKey('KeyC')) choice = 'credits';
+    if (this.debugKey('KeyB')) choice = 'battle';
     if (choice === 'story') this.request({ t: 'start' });
+    else if (choice === 'battle') this.startArena();
     else if (choice === 'duel') this.request({ t: 'mode', mode: 'duel' });
     else if (choice === 'memory') this.enterMemory();
     else if (choice === 'gallery') this.enterGallery();
@@ -860,7 +862,26 @@ class Game {
     this.runCurtain(() => this.enterLevel(i));
   }
 
+  /** Battle mode: the five battles back to back, the Shadow Atlas between them. */
+  private startArena(): void {
+    sfx.click();
+    sfx.success();
+    for (const t of [...this.titleTexts, ...this.endTexts]) t.show(false);
+    this.mainMenu.setVisible(false);
+    this.runCurtain(() => {
+      this.startRun();
+      this.clearStory();
+      this.arenaRun = true;
+      this.fragments.setVisible(false);
+      this.showMap(0);
+    });
+  }
+
+  /** True while playing Battle mode (no puzzles between battles). */
+  private arenaRun = false;
+
   private startRun(): void {
+    this.arenaRun = false;
     this.mainMenu.setVisible(false);
     for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
     this.finale.hide();
@@ -1075,11 +1096,13 @@ class Game {
     this.level = undefined;
     this.phase = 'end';
     const thiefIsFriend = this.levels.find((l) => l instanceof ThiefLevel)?.outcome === 'rabbit';
-    this.progress.recordRun(this.runTime);
+    if (!this.arenaRun) this.progress.recordRun(this.runTime);
     this.applyWorld('sky');
     this.mainMenu.setVisible(true);
     this.finale.show(thiefIsFriend);
-    const story = this.levels.map((l) => l.storyLine());
+    const story = this.arenaRun
+      ? ['You fought through all five lands of the Shadow Kingdom.', 'Every shadow you made became a weapon in your hands.', 'The Shadow Eater is broken, and the light is free.']
+      : this.levels.map((l) => l.storyLine());
     sfx.fanfare();
     const secs = Math.round(this.runTime);
     const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50) + this.duets * DUET_BONUS + this.battleScore;
@@ -1194,7 +1217,8 @@ class Game {
       const i = this.mapNext;
       this.runCurtain(() => {
         this.atlas.hideNow();
-        this.enterLevel(i);
+        if (this.arenaRun) this.enterBattle(i);
+        else this.enterLevel(i);
       });
     }
   }
