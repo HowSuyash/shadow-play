@@ -20,7 +20,7 @@ import { Gallery } from './ui/gallery.js';
 import { Lobby } from './ui/lobby.js';
 import { Fader, Flash, FragmentBar, Hint, HoldRing, MainMenu, makeText, PauseMenu, PinchMenu, projectToWall } from './ui/wallUI.js';
 
-type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel' | 'memory';
+type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel' | 'memory' | 'credits';
 
 /** Seconds each alternative answer's hint stays up before switching. */
 const HINT_CYCLE = 4;
@@ -65,6 +65,15 @@ class Game {
     { id: 'menu', label: 'Menu' },
   ]);
   private memoryRecorded = false;
+  readonly settingsMenu = new PinchMenu<'sound' | 'effects' | 'back'>('Settings', [
+    { id: 'sound', label: 'Sound' },
+    { id: 'effects', label: 'Effects' },
+    { id: 'back', label: 'Back' },
+  ]);
+  private settingsOpen = false;
+  private soundLevel = 0;
+  private effectsLevel = 0;
+  private creditTexts: Mesh[] = [];
   readonly progress = new Progress();
   readonly particles = new Particles();
   private partnerGlow: GlowHands | undefined;
@@ -138,7 +147,8 @@ class Game {
       this.wall.add(m);
       this.creatureLabels[p] = new Fader(m, 6);
     }
-    this.nearField.add(this.memoryMenu.root);
+    this.nearField.add(this.memoryMenu.root, this.settingsMenu.root);
+    this.loadSettings();
     this.wall.add(this.gallery.root, this.duel.root, this.memory.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
 
@@ -209,7 +219,7 @@ class Game {
     this.collectPinches();
     if (this.paused && playing) this.updatePaused(dt);
     else if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
-    else if (this.phase === 'gallery') this.updateGallery(g.start);
+    else if (this.phase === 'gallery' || this.phase === 'credits') this.updateGallery(g.start);
     else if ((this.phase === 'duel' || this.phase === 'memory') && (g.pause || this.debugKey('KeyP'))) this.request({ t: 'pause' });
     else if (this.phase === 'duel') this.updateDuel(pose);
     else if (this.phase === 'memory') this.updateMemory(pose);
@@ -224,6 +234,7 @@ class Game {
     if (this.phase !== 'gallery') this.backMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'duel') this.duelMenu.update(dt, Game.NONE, Game.NONE);
     if (this.phase !== 'memory') this.memoryMenu.update(dt, Game.NONE, Game.NONE);
+    if (!this.settingsOpen) this.settingsMenu.update(dt, Game.NONE, Game.NONE);
     if (!this.paused) {
       this.memory.update(dt, time);
       this.duel.update(dt, time);
@@ -261,16 +272,28 @@ class Game {
     projectToWall(this.gestures.openPalmAnchor, this.room.lightPos, this.wallPoint);
     this.ring.set(p, this.wallPoint);
     sfx.setChime(p);
+    if (this.settingsOpen) {
+      this.updateSettings();
+      return;
+    }
     let choice = this.mainMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
     if (startFired || this.debugKey('Enter')) choice = 'story';
     // Desktop-only shortcuts.
     if (this.debugKey('KeyG')) choice = 'gallery';
     if (this.debugKey('KeyV')) choice = 'duel';
     if (this.debugKey('KeyM')) choice = 'memory';
+    if (this.debugKey('KeyC')) choice = 'credits';
     if (choice === 'story') this.request({ t: 'start' });
     else if (choice === 'duel') this.request({ t: 'mode', mode: 'duel' });
     else if (choice === 'memory') this.enterMemory();
     else if (choice === 'gallery') this.enterGallery();
+    else if (choice === 'credits') this.enterCredits();
+    else if (choice === 'settings') {
+      sfx.click();
+      this.settingsOpen = true;
+      this.mainMenu.setVisible(false);
+      this.settingsMenu.setVisible(true);
+    }
   }
 
   /** Pinch midpoints of tracked hands, shared by every pinch menu this frame. */
@@ -301,6 +324,9 @@ class Game {
     this.gallery.hide();
     this.duel.stop();
     this.memory.stop();
+    this.clearCredits();
+    this.settingsOpen = false;
+    this.settingsMenu.setVisible(false);
     this.duelMenu.setVisible(false);
     this.memoryMenu.setVisible(false);
     this.backMenu.setVisible(false);
@@ -418,6 +444,105 @@ class Game {
         this.handsNotice = undefined;
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Settings (sound, effects) and Credits
+
+  private static readonly SOUND = [
+    ['Sound: High', 1],
+    ['Sound: Low', 0.4],
+    ['Sound: Off', 0],
+  ] as const;
+  private static readonly EFFECTS = [
+    ['Effects: Full', 1],
+    ['Effects: Low', 0.35],
+    ['Effects: Off', 0],
+  ] as const;
+
+  private loadSettings(): void {
+    try {
+      const raw = JSON.parse(localStorage.getItem('shadow-play-settings-v1') ?? '{}') as { sound?: number; effects?: number };
+      this.soundLevel = raw.sound ?? 0;
+      this.effectsLevel = raw.effects ?? 0;
+    } catch {
+      /* defaults */
+    }
+    this.applySettings();
+  }
+
+  private applySettings(): void {
+    const [sLabel, s] = Game.SOUND[this.soundLevel % 3];
+    const [eLabel, e] = Game.EFFECTS[this.effectsLevel % 3];
+    sfx.setVolume(s);
+    this.particles.level = e;
+    this.settingsMenu.setLabel('sound', sLabel);
+    this.settingsMenu.setLabel('effects', eLabel);
+    try {
+      localStorage.setItem('shadow-play-settings-v1', JSON.stringify({ sound: this.soundLevel, effects: this.effectsLevel }));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  private updateSettings(): void {
+    this.mainMenu.update(this.lastDt, Game.NONE, Game.NONE); // let it animate closed
+    let choice = this.settingsMenu.update(this.lastDt, this.menuPinchPoints, this.menuPinchStarted);
+    if (this.debugKey('Escape')) choice = 'back';
+    if (choice === 'sound') this.soundLevel = (this.soundLevel + 1) % 3;
+    if (choice === 'effects') this.effectsLevel = (this.effectsLevel + 1) % 3;
+    if (choice === 'sound' || choice === 'effects') {
+      this.applySettings();
+      sfx.click();
+      if (choice === 'effects') this.particles.burst(this.wallPoint.set(0, STAGE.groundY + 0.5, STAGE.z), 50);
+    }
+    if (choice === 'back') {
+      sfx.click();
+      this.settingsOpen = false;
+      this.settingsMenu.setVisible(false);
+      this.mainMenu.setVisible(true);
+    }
+  }
+
+  private enterCredits(): void {
+    sfx.click();
+    this.runCurtain(() => {
+      for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
+      this.finale.hide();
+      this.mainMenu.setVisible(false);
+      const lines: [string[], number, number, Record<string, unknown>][] = [
+        [['SHADOW PLAY'], 0.26, STAGE.titleY + 0.12, { size: 110, letterSpacing: 14, weight: '700' }],
+        [['Your Hands. Your Shadows. Your World.'], 0.1, STAGE.titleY - 0.05, { size: 56, italic: true }],
+        [
+          [
+            'Made by HowSuyash for the Meta VR Start Developer Competition',
+            'Built with Meta Immersive Web SDK · Three.js · WebXR Hand Input · Trystero',
+            'Every silhouette, texture and sound is generated in code',
+            'Inspired by the old art of hand-shadow puppetry',
+          ],
+          0.32,
+          STAGE.titleY - 0.38,
+          { size: 50, color: '#ffe9c4' },
+        ],
+      ];
+      this.creditTexts = lines.map(([l, h, y, style]) => {
+        const m = makeText(l, h, style);
+        m.position.set(0, y, STAGE.z + 0.004);
+        this.wall.add(m);
+        return m;
+      });
+      this.finale.show(true);
+      this.backMenu.setVisible(true);
+      this.phase = 'credits';
+    });
+  }
+
+  private clearCredits(): void {
+    for (const m of this.creditTexts) {
+      m.removeFromParent();
+      (m.material as MeshBasicMaterial).map?.dispose();
+    }
+    this.creditTexts = [];
   }
 
   /** Shadow Memory is played locally (each player has their own sequence). */

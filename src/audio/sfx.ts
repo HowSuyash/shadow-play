@@ -10,6 +10,14 @@ export class Sfx {
   private chimeGain: GainNode | undefined;
   private humStarted = false;
 
+  /** 0..1 master volume (Settings). */
+  volume = 1;
+
+  setVolume(v: number): void {
+    this.volume = v;
+    if (this.ctx) this.master.gain.setTargetAtTime(0.8 * v, this.ctx.currentTime, 0.05);
+  }
+
   /** Must be called from (or after) a user gesture: click, key, or XR session start. */
   unlock(): void {
     if (!this.ctx) {
@@ -17,7 +25,7 @@ export class Sfx {
       if (!Ctor) return;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.8;
+      this.master.gain.value = 0.8 * this.volume;
       this.master.connect(this.ctx.destination);
       const len = this.ctx.sampleRate * 1.5;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);

@@ -114,8 +114,12 @@ export class Particles {
     this.color[i * 3 + 2] = c.b;
   }
 
+  /** 1 = full, 0.4 = low, 0 = off (Settings). Scales spark counts and dust. */
+  level = 1;
+
   /** A swirling burst of gold and purple sparks: a shadow comes alive. */
   burst(at: Vector3, count = 70, spread = 0.5): void {
+    count = Math.round(count * this.level);
     for (let k = 0; k < count; k++) {
       const a = Math.random() * Math.PI * 2;
       const s = spread * (0.3 + Math.random());
@@ -135,6 +139,7 @@ export class Particles {
 
   /** Sparks drawn inward to a point (the filling hold ring). */
   gather(at: Vector3, radius: number, amount: number): void {
+    if (Math.random() > this.level) return;
     for (let k = 0; k < amount; k++) {
       const a = Math.random() * Math.PI * 2;
       const x = at.x + Math.cos(a) * radius;
@@ -173,7 +178,7 @@ export class Particles {
       this.pos[o + 1] += vy * dt;
       this.pos[o + 2] += this.vel[o + 2] * dt;
       const fade = dust ? Math.sin(Math.min(1, t) * Math.PI) * 0.55 : (1 - t) * (t < 0.1 ? t * 10 : 1);
-      this.alpha[i] = fade * this.intensity;
+      this.alpha[i] = fade * this.intensity * (dust ? this.level : 1);
       this.size[i] = this.baseSize[i] * (dust ? 1 : 1 - t * 0.5);
     }
     const g = this.points.geometry;

@@ -463,6 +463,7 @@ export class PinchMenu<T extends string> {
   private readonly buttons: { id: T; mesh: Mesh; normal: CanvasTexture; hot: CanvasTexture; pos: Vector3 }[] = [];
   private readonly title: Mesh;
   private readonly radius: number;
+  private readonly accent: string;
   hovered: T | null = null;
   private appear = 0;
   private visibleTarget = false;
@@ -472,23 +473,32 @@ export class PinchMenu<T extends string> {
     // Tilt to face the eyes (which are above and behind the menu).
     this.root.rotation.x = -0.45;
     const n = items.length;
-    const size = n <= 2 ? 0.17 : n === 3 ? 0.14 : 0.115;
+    // More than four buttons: two rows of three, so the menu stays within reach.
+    const cols = n > 4 ? 3 : n;
+    const size = n <= 2 ? 0.17 : n === 3 || n > 4 ? 0.12 : 0.115;
     const spacing = n <= 2 ? MENU.buttonOffsetX * 2 : size + 0.018;
     this.radius = Math.min(MENU.buttonRadius, spacing * 0.55);
+    this.accent = accent;
+    // Centre multi-row menus vertically on the usual spot so no row drops out of view.
+    const rows = Math.ceil(n / cols);
+    const rowStep = size + 0.02;
+    const top = ((rows - 1) * rowStep) / 2;
     items.forEach((item, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
       const normal = buttonTexture(item.label, false, accent);
       const hot = buttonTexture(item.label, true, accent);
       const mesh = new Mesh(
         new PlaneGeometry(size, size),
         new MeshBasicMaterial({ map: normal, transparent: true, toneMapped: false }),
       );
-      mesh.position.set((i - (n - 1) / 2) * spacing, 0, 0);
+      mesh.position.set((col - (cols - 1) / 2) * spacing, top - row * rowStep, 0);
       mesh.renderOrder = 10;
       this.root.add(mesh);
       this.buttons.push({ id: item.id, mesh, normal, hot, pos: new Vector3() });
     });
     this.title = makeText([title], 0.06, { size: 64 });
-    this.title.position.set(0, size / 2 + 0.05, 0);
+    this.title.position.set(0, top + size / 2 + 0.05, 0);
     this.root.add(this.title);
     this.root.visible = false;
   }
@@ -543,6 +553,19 @@ export class PinchMenu<T extends string> {
     return pressed;
   }
 
+  /** Change a button's label (e.g. a setting's current value). */
+  setLabel(id: T, label: string): void {
+    const b = this.buttons.find((x) => x.id === id);
+    if (!b) return;
+    b.normal.dispose();
+    b.hot.dispose();
+    b.normal = buttonTexture(label, false, this.accent);
+    b.hot = buttonTexture(label, true, this.accent);
+    const mat = b.mesh.material as MeshBasicMaterial;
+    mat.map = b.normal;
+    mat.needsUpdate = true;
+  }
+
   /** Room-space centre of a button (for tests and the emulator). */
   buttonPosition(id: T, out: Vector3): Vector3 {
     const b = this.buttons.find((x) => x.id === id);
@@ -565,7 +588,7 @@ export class PauseMenu extends PinchMenu<PauseChoice> {
   }
 }
 
-export type MainChoice = 'story' | 'duel' | 'memory' | 'gallery';
+export type MainChoice = 'story' | 'duel' | 'memory' | 'gallery' | 'settings' | 'credits';
 
 export class MainMenu extends PinchMenu<MainChoice> {
   constructor() {
@@ -574,6 +597,8 @@ export class MainMenu extends PinchMenu<MainChoice> {
       { id: 'duel', label: 'Duel' },
       { id: 'memory', label: 'Memory' },
       { id: 'gallery', label: 'Gallery' },
+      { id: 'settings', label: 'Settings' },
+      { id: 'credits', label: 'Credits' },
     ]);
   }
 }
