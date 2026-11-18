@@ -130,7 +130,7 @@ export class PassageLevel extends Level {
 // ---------------------------------------------------------------------------
 
 /** The final boss: a towering, many-armed shadow with burning purple eyes. */
-class ShadowEater {
+export class ShadowEater {
   readonly root = new Group();
   private readonly mat = shadowMaterial();
   private readonly arms: Group[] = [];

@@ -5,6 +5,7 @@ import { Battle, BATTLES, type BattleInput } from './battle/battle.js';
 import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { ACHIEVEMENTS, Progress } from './game/progress.js';
+import { Prologue } from './game/prologue.js';
 import { Duel, type DuelEvent } from './modes/duel.js';
 import { Memory } from './modes/memory.js';
 import { Gestures } from './hands/gestures.js';
@@ -142,6 +143,8 @@ class Game {
   readonly battle = new Battle();
   /** The Shadow Atlas map shown between chapters. */
   readonly atlas = new Atlas();
+  /** Shadow-puppet scenes behind the prologue cards. */
+  readonly prologue = new Prologue();
   private battleIndex = 0;
   private battleScore = 0;
   private battleKills = 0;
@@ -243,7 +246,7 @@ class Game {
       new PassageLevel(this.room),
       new ShadowEaterLevel(this.room),
     ];
-    this.wall.add(this.finale.root, this.fragments.root, this.atlas.root);
+    this.wall.add(this.finale.root, this.fragments.root, this.atlas.root, this.prologue.root);
     this.levelTitles = this.levels.map((l) => {
       const m = makeText([`${l.numeral} · ${l.title}`], 0.2, { size: 80, letterSpacing: 4 });
       m.position.set(0, STAGE.titleY, STAGE.z);
@@ -341,6 +344,7 @@ class Game {
     this.fragments.update(dt, time);
     for (const t of this.endTexts) t.update(dt);
     for (const t of this.storyTexts) t.update(dt);
+    this.prologue.update(dt, time);
     this.atlas.update(dt, time);
 
     // Desktop debug: D per spec; backquote too, because the IWER emulator uses WASD.
@@ -1170,6 +1174,7 @@ class Game {
   }
 
   private clearStory(): void {
+    this.prologue.hide();
     for (const f of this.storyTexts) {
       f.mesh.removeFromParent();
       (f.mesh.material as MeshBasicMaterial).map?.dispose();
@@ -1193,6 +1198,8 @@ class Game {
       return;
     }
     const lines = PROLOGUE[this.storyIndex];
+    this.prologue.show(this.storyIndex);
+    if (this.storyIndex === 1) sfx.roar();
     const m = makeText(lines, 0.3, { size: 72, italic: true, color: '#fff1d6' });
     m.position.set(0, STAGE.titleY - 0.15, STAGE.z + 0.005);
     this.wall.add(m);
@@ -1369,6 +1376,11 @@ class Game {
     d.right.crossVectors(this.v2, d.up).normalize();
     d.side.copy(d.up).multiplyScalar(0.35).addScaledVector(this.v2, 0.65).normalize();
     d.normal.copy(d.right).negate();
+    // A shield in the mouse hand faces the monsters; swords and whips point into the scene.
+    if (b.weapons.right?.id === 'shield') {
+      d.side.copy(d.up);
+      d.normal.copy(this.v2);
+    }
     b.rigs.right.fromFrame(this.v3, this.v2, d.side, d.normal, this.mouse.down, this.mouse.clicked, dt);
     this.mouse.clicked = false;
     input.aim = this.aimDir;

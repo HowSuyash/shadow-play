@@ -619,8 +619,9 @@ export class Battle implements ArenaCtx {
     sfx.summonWeapon();
     // Name of the weapon pops up above the hand.
     this.weaponLabel?.mesh.removeFromParent();
-    const m = makeText([WEAPON_INFO[id].name], 0.11, { size: 64, color: '#fff1d6' });
-    m.position.copy(rig.pos).add(tmp.set(0, 0.22, 0));
+    const m = makeText([WEAPON_INFO[id].name], 0.07, { size: 64, color: '#fff1d6' });
+    m.position.copy(rig.pos).add(tmp.set(hand === 'left' ? -0.12 : 0.12, 0.1, 0));
+    m.lookAt(this.head);
     this.root.add(m);
     this.weaponLabel = new Fader(m, 4).show();
     this.weaponLabelT = 1.6;
@@ -1118,7 +1119,9 @@ export class Battle implements ArenaCtx {
           (this.status.mesh.material as MeshBasicMaterial).map?.dispose();
         }
         const m = makeText([text], 0.26, { size: 52, color: '#ffe9c4' });
-        m.position.set(this.head.x, 3.0, this.head.z - 3.6);
+        // Up and to the left, so it never covers a monster (or the boss's core).
+        m.position.set(this.head.x - 1.9, 2.75, this.head.z - 3.2);
+        m.lookAt(this.head);
         this.root.add(m);
         this.status = new Fader(m, 4).show();
         this.status.value = 1;
