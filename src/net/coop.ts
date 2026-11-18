@@ -1,4 +1,4 @@
-import { defaultRelayUrls, joinRoom, type Room } from 'trystero';
+import { joinRoom, type Room } from 'trystero';
 import { JOINT_COUNT, type HandData } from '../hands/handData.js';
 import { POSES, type PoseId } from '../hands/poseDetector.js';
 
@@ -24,8 +24,18 @@ export type CoopEvent =
   | { t: 'level'; i: number };
 
 const APP_ID = 'shadow-play-quest-coop-v1';
-/** Public relays used only for matchmaking; skip ones known to be down. */
-const RELAYS = defaultRelayUrls.filter((u) => !u.includes('robosats'));
+/**
+ * Public Nostr relays used only for matchmaking (swapping WebRTC offers).
+ * Pinned to large, well-run general relays that answered when tested;
+ * the library default picks randomly from a list with many dead hosts.
+ */
+const RELAYS = [
+  'wss://nos.lol',
+  'wss://nostr.mom',
+  'wss://relay.primal.net',
+  'wss://relay.snort.social',
+  'wss://relay.nostr.net',
+];
 /** Hand packets per second. Remote hands are interpolated in between. */
 const SEND_HZ = 20;
 /** Packet: [flags, 75 left, 75 right, chargingPose, progress] */
