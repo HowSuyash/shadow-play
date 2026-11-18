@@ -46,6 +46,8 @@ export abstract class Level {
   abstract readonly title: string;
   /** One line of story shown under the chapter title. */
   abstract readonly subtitle: string;
+  /** Short goal shown on the HUD while the chapter is being played. */
+  abstract get objective(): string;
   /** Seconds before the hand-shape hint appears (short for the tutorial and the boss). */
   readonly hintDelay: number = 8;
   /**
@@ -203,6 +205,9 @@ export class ThiefLevel extends Level {
   readonly numeral = 'II';
   readonly title = 'The Lost Treasure';
   readonly subtitle = 'A shadow thief has stolen the second fragment of light.';
+  get objective(): string {
+    return 'Save the candle from the thief  ·  DOG or RABBIT';
+  }
   readonly solutions: readonly PoseId[] = ['dog', 'rabbit'];
 
   private readonly thief = new Thief();
@@ -413,6 +418,9 @@ export class ChasmLevel extends Level {
   readonly numeral = 'I';
   readonly title = 'The First Light';
   readonly subtitle = 'The Shadow Eater stole the light. Your hands hold the old magic.';
+  get objective(): string {
+    return 'Bring the lantern across the chasm  ·  BIRD or RABBIT';
+  }
   override readonly hintDelay = 4;
   readonly solutions: readonly PoseId[] = ['bird', 'rabbit'];
   override readonly hintX = 0.08;
@@ -570,6 +578,9 @@ export class WallLevel extends Level {
   readonly numeral = 'III';
   readonly title = 'The Underground Secret';
   readonly subtitle = 'Beneath the roots, a friend is trapped.';
+  get objective(): string {
+    return 'Free the kitten behind the wall  ·  RABBIT or BIRD';
+  }
   readonly solutions: readonly PoseId[] = ['rabbit', 'bird'];
   override readonly hintX = -0.6;
 

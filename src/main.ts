@@ -73,6 +73,11 @@ class Game {
   /** Set by the system: re-anchor the room to the player's head next frame. */
   onRecenter: (() => void) | undefined;
   private toast: Fader | undefined;
+  /** HUD: the chapter's current goal, re-rendered only when it changes. */
+  private objectiveText: Fader | undefined;
+  private objectiveShown = '';
+  /** HUD: name of the creature being held, floating above the ring. */
+  private readonly creatureLabels = {} as Record<PoseId, Fader>;
   /** Shown when the player is holding controllers instead of using hands. */
   private handsNotice: Fader | undefined;
   private noHandsTime = 0;
@@ -128,6 +133,11 @@ class Game {
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
     this.room.root.add(this.particles.points);
     this.memory = new Memory(this.hint);
+    for (const p of POSES) {
+      const m = makeText([p.toUpperCase()], 0.17, { size: 72, letterSpacing: 8, color: '#fff1d6' });
+      this.wall.add(m);
+      this.creatureLabels[p] = new Fader(m, 6);
+    }
     this.nearField.add(this.memoryMenu.root);
     this.wall.add(this.gallery.root, this.duel.root, this.memory.root);
     this.wall.add(this.ring.mesh, this.flash.mesh, this.hint.root);
@@ -226,6 +236,7 @@ class Game {
     this.partnerGlow?.update([this.partnerLeft, this.partnerRight], time);
     this.updateToast(dt);
     this.updateHandsNotice(dt);
+    this.updateHud(dt, pose);
     this.updateCurtain(dt);
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -453,6 +464,35 @@ class Game {
     }
   }
 
+  /** Minimal HUD: the current objective, and the creature you're forming. */
+  private updateHud(dt: number, pose: PoseResult): void {
+    // Objective: shown in chapters once the title card has faded.
+    const want = this.phase === 'level' && this.level && this.levelTitleTimer <= 0 && !this.level.solved ? this.level.objective : '';
+    if (want !== this.objectiveShown) {
+      this.objectiveShown = want;
+      this.objectiveText?.show(false);
+      if (want) {
+        if (this.objectiveText) {
+          this.objectiveText.mesh.removeFromParent();
+          (this.objectiveText.mesh.material as MeshBasicMaterial).map?.dispose();
+        }
+        const m = makeText([want], 0.085, { size: 56, italic: true, color: '#ffe9c4' });
+        m.position.set(0, STAGE.titleY + 0.3, STAGE.z + 0.003);
+        this.wall.add(m);
+        this.objectiveText = new Fader(m, 2).show();
+      }
+    }
+    this.objectiveText?.update(dt);
+    // Detected creature: its name floats above the filling ring.
+    const holding = this.ring.progress > 0.12 ? pose.charging : null;
+    for (const p of POSES) {
+      const f = this.creatureLabels[p];
+      f.show(p === holding);
+      if (p === holding) f.mesh.position.set(this.ring.target.x, this.ring.target.y + 0.42, STAGE.z + 0.006);
+      f.update(dt);
+    }
+  }
+
   /** A small celebratory line when an achievement unlocks. */
   private updateToast(dt: number): void {
     const fresh = this.progress.takeNew();
@@ -463,7 +503,7 @@ class Game {
       }
       const titles = fresh.map((id) => ACHIEVEMENTS[id].title).join(' · ');
       const m = makeText([`✦ ${titles} ✦`], 0.09, { size: 52, color: '#ffe2a8' });
-      m.position.set(0, STAGE.titleY + 0.3, STAGE.z + 0.004);
+      m.position.set(0, STAGE.titleY + 0.56, STAGE.z + 0.004);
       this.wall.add(m);
       this.toast = new Fader(m, 2.5).show();
       this.toastTimer = 3.5;

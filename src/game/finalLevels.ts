@@ -41,6 +41,9 @@ export class PassageLevel extends Level {
   readonly numeral = 'IV';
   readonly title = 'The Forbidden Passage';
   readonly subtitle = 'The castle is sealed. Only something small and quiet can slip inside.';
+  get objective(): string {
+    return 'Open the castle gate  ·  make a SNAKE';
+  }
   readonly solutions: readonly PoseId[] = ['snake'];
   override readonly hintX = -0.7;
 
@@ -196,6 +199,10 @@ export class ShadowEaterLevel extends Level {
   readonly numeral = 'V';
   readonly title = 'The Shadow Eater';
   readonly subtitle = 'Four seals guard the stolen light. Break them with all four shadows.';
+  get objective(): string {
+    if (this.stage >= this.needs.length) return 'The seals are broken!';
+    return `Break seal ${this.stage + 1} of 4  ·  make a ${this.needs[this.stage].toUpperCase()}`;
+  }
   override readonly hintDelay = 2.5;
   override readonly hintX = -0.85;
 
