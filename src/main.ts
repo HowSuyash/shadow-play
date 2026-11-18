@@ -65,6 +65,9 @@ class Game {
   /** Set by the system: re-anchor the room to the player's head next frame. */
   onRecenter: (() => void) | undefined;
   private toast: Fader | undefined;
+  /** Shown when the player is holding controllers instead of using hands. */
+  private handsNotice: Fader | undefined;
+  private noHandsTime = 0;
   private toastTimer = 0;
   /** Per-chapter stats for stars. */
   private chapterTime = 0;
@@ -200,6 +203,7 @@ class Game {
     this.particles.update(dt);
     this.partnerGlow?.update([this.partnerLeft, this.partnerRight], time);
     this.updateToast(dt);
+    this.updateHandsNotice(dt);
     this.updateCurtain(dt);
     this.room.update(dt);
     this.ring.update(dt, time);
@@ -341,6 +345,41 @@ class Game {
       if (this.debugKey('Escape')) choice = 'menu';
       if (choice === 'rematch') this.request({ t: 'mode', mode: 'duel' });
       else if (choice === 'menu') this.request({ t: 'mode', mode: 'menu' });
+    }
+  }
+
+  /**
+   * Hands-only game: if the session has controllers but no tracked hands for
+   * a couple of seconds, ask the player to put them down. (Quest switches to
+   * hand tracking automatically when controllers are set aside.)
+   */
+  private updateHandsNotice(dt: number): void {
+    const session = this.world.session;
+    let controllers = false;
+    if (session) for (const src of session.inputSources) if (!src.hand && src.gamepad) controllers = true;
+    const handsVisible = this.hands.left.tracked || this.hands.right.tracked;
+    this.noHandsTime = session && !handsVisible ? this.noHandsTime + dt : 0;
+    const show = this.noHandsTime > 2;
+    if (show && !this.handsNotice) {
+      const m = makeText(
+        controllers
+          ? ['Put your controllers down', 'Shadow Play is played with your bare hands']
+          : ['Raise your hands in front of you', 'Shadow Play needs hand tracking'],
+        0.27,
+        { size: 60, color: '#ffe2a8' },
+      );
+      m.position.set(0, STAGE.titleY - 0.45, STAGE.z + 0.01);
+      this.wall.add(m);
+      this.handsNotice = new Fader(m, 2);
+    }
+    if (this.handsNotice) {
+      this.handsNotice.show(show);
+      this.handsNotice.update(dt);
+      if (!show && this.handsNotice.value === 0) {
+        this.handsNotice.mesh.removeFromParent();
+        (this.handsNotice.mesh.material as MeshBasicMaterial).map?.dispose();
+        this.handsNotice = undefined;
+      }
     }
   }
 
