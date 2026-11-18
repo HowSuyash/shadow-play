@@ -1,6 +1,6 @@
 # Development status
 
-_Last updated: 18 Nov 2026, before the competition deadline._
+_Last updated: 19 Nov 2026. The battle update lives on the `battle` branch; `main` (the live site) is the version submitted to the competition._
 
 ## Done and verified
 
@@ -25,10 +25,15 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 | Progress, stars, achievements | ✅ | Unit tests; gallery shows them |
 | Transformation particles, dust, partner glow avatar | ✅ | Screenshots; 60 fps (display cap) on an integrated AMD GPU at 1000×620 |
 | Deploy: GitHub Pages via Actions (typecheck → tests → build), Vercel config | ✅ | Live at https://howsuyash.github.io/shadow-play/ |
+| **Shadow battles** after every chapter: shapes become weapons in your hands (blade, firebird, shield, whip) | ✅ | Unit tests (battle flow, weapon mapping, whip rope, hand rig, shield reflection, boss); captured 25-joint hand poses fed in: DOG → blade in the right hand, swinging the hand wins the battle; **inside an emulated XR session** (IWER) the same flow works |
+| Monsters: Shadow Imp, Wraith (orbs + swoop), Iron Brute, the Shadow Eater boss (3 cores) | ✅ | Headless GPU runs of every battle with mouse-driven weapons: all five battles are winnable; boss cores break and stay broken after a fall |
+| Prologue story cards + the Shadow Atlas map between chapters | ✅ | Full headless run: title → prologue → map → I → battle → map → … → V → boss → ending (no errors) |
+| Desktop battle controls (mouse = weapon hand, click, 1–4, Shift, Space) | ✅ | Headless runs |
+| Battle performance | ✅ | 60 fps (display cap) on an integrated GPU; ~150–175 draw calls with five monsters |
 
 ## Not verified (needs hardware or people)
 
-- **A real Meta Quest.** Frame rate, comfort, and how forgiving the four poses feel with real hands have only been checked in the emulator and with captured joint data. Thresholds live in `POSE_CONFIG` and the per-pose rules for quick tuning.
+- **A real Meta Quest.** Frame rate, comfort, and how forgiving the four poses feel with real hands have only been checked in the emulator and with captured joint data. The same goes for **how the weapons feel in real hands**: swing-speed thresholds (blade 1.3 m/s, whip 2.2 m/s, bash 1.4 m/s, flick 2.2 m/s) and the grip angle are tuned on emulated and mouse-driven hands, and are constants in `src/battle/`. Thresholds live in `POSE_CONFIG` and the per-pose rules for quick tuning.
 - **The duet rule with two real people.** The rule (both players must hold a shape) is covered by logic and unit tests; the network sync was tested with two browsers, but without real hands.
 - **Strict networks.** There's no TURN server, so two headsets behind symmetric NAT (some campus or corporate Wi-Fi) may fail to connect. The game then simply stays solo and says so.
 
@@ -36,7 +41,8 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 
 - **No dedicated game server.** Co-op is serverless peer-to-peer with host authority and host-side validation of duel claims. A Colyseus/Socket.IO server would need paid hosting and credentials, and GitHub Pages can't run one. Moving to a server later only means replacing `src/net/coop.ts` with the same `send` / `onEvent` interface.
 - **Room codes are six digits** (six characters, digits only), so they can be typed on a big pinch keypad in VR.
-- **Of the competitive and party ideas, Gesture Challenge (duel, networked) and Shadow Memory (solo) are built.** Not built: Shadow Race, Battle, Soccer, Survival, and the Party mode.
+- **Of the competitive and party ideas, Gesture Challenge (duel, networked) and Shadow Memory (solo) are built.** Not built: Shadow Race, Soccer, Survival, and the Party mode.
+- **Battles are solo.** In online co-op the story stays the shadow-puppet story without the battles (the battle simulation isn't networked yet).
 - **No separate lobby "ready" step:** in co-op the game starts when either player chooses Story or Duel.
 - **Settings covers sound and effects only.** Recenter is in the pause menu.
 - **Gesture calibration is via tunable thresholds** (`POSE_CONFIG`), not an in-game calibration flow.
@@ -45,13 +51,14 @@ _Last updated: 18 Nov 2026, before the competition deadline._
 ## Test results
 
 ```
-npm test   →   Test Files 2 passed · Tests 41 passed
+npm test   →   Test Files 3 passed · Tests 51 passed
 npx tsc --noEmit  →  clean
 npm run build     →  ok
 ```
 
 - `tests/poseDetector.test.ts`: classification on real joints, false positives, features, hold timer, detector timing.
 - `tests/gameplay.test.ts`: every chapter branch, wrong creatures, chapter reset, boss solo and co-op, duel validation and flow, Shadow Memory, progress.
+- `tests/battle.test.ts`: segment maths, whip rope length under wild flicks, hand-rig velocity and grip frame, shape → weapon mapping, a battle from intro to victory, the never-stuck weapon grant, falling and rising again, shield reflection hurting the caster, boss cores persisting after a fall.
 
 ## Known issues / ideas
 

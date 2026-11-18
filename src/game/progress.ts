@@ -32,6 +32,9 @@ export const ACHIEVEMENTS: Record<string, { title: string; text: string }> = {
   flawless: { title: 'Flawless', text: 'Earn three stars on every chapter.' },
   memory: { title: 'Long Memory', text: 'Remember six shadows in a row.' },
   dragon: { title: 'Shadow Dragon', text: 'Defeat the Shadow Eater and awaken the dragon.' },
+  warrior: { title: 'Shadow Warrior', text: 'Win all five battles.' },
+  untouched: { title: 'Untouchable', text: 'Win a battle without losing a flame.' },
+  mirror: { title: 'Mirror Moon', text: 'Defeat a monster with its own orb.' },
 };
 
 const KEY = 'shadow-play-progress-v1';
@@ -92,6 +95,13 @@ export class Progress {
     this.data.legendary = true;
     this.award('dragon');
     if (seconds < 240) this.award('swift');
+    this.save();
+  }
+
+  /** A battle was won (index 0–4; 4 is the Shadow Eater). */
+  recordBattle(index: number, damageTaken: number): void {
+    if (damageTaken === 0) this.award('untouched');
+    if (index === 4) this.award('warrior');
     this.save();
   }
 

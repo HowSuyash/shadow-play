@@ -191,6 +191,10 @@ export class Battle implements ArenaCtx {
   /** True once the battle is won and its victory beat has played. */
   finished = false;
   private sinceHurt = 10;
+  /** Played on a computer: banners explain the mouse and keys too. */
+  desktop = false;
+  /** Called when something achievement-worthy happens. */
+  onAchievement: ((id: string) => void) | undefined;
   private slowmo = 0;
   private hurtFlash = 0;
   private bladeSwoosh = [0, 0];
@@ -374,7 +378,11 @@ export class Battle implements ArenaCtx {
           else {
             this.setState('arming');
             const cap = POSE_CAPTIONS[def.feature];
-            this.setBanner(`${cap[0]} → ${WEAPON_INFO[WEAPON_OF[def.feature]].name.toUpperCase()}`, `${cap[1]} · the shadow becomes a weapon in your hand`);
+            const key = { dog: 1, bird: 2, rabbit: 3, snake: 4 }[def.feature];
+            this.setBanner(
+              `${cap[0]} → ${WEAPON_INFO[WEAPON_OF[def.feature]].name.toUpperCase()}`,
+              this.desktop ? `Press ${key} to pull the shadow into your hand (in VR: ${cap[1]})` : `${cap[1]} · the shadow becomes a weapon in your hand`,
+            );
             (this.pict.material as MeshBasicMaterial).map = pictogramTexture(def.feature);
             (this.pict.material as MeshBasicMaterial).needsUpdate = true;
             this.pictFade.show();
@@ -441,7 +449,15 @@ export class Battle implements ArenaCtx {
     const w = WEAPON_INFO[WEAPON_OF[def.feature]];
     this.pictFade.show(false);
     this.setState('howto');
-    this.setBanner(w.name.toUpperCase(), w.how.charAt(0).toUpperCase() + w.how.slice(1));
+    const id = WEAPON_OF[def.feature];
+    const extra = !this.desktop
+      ? ''
+      : id === 'firebird'
+        ? ' · desktop: aim with the mouse, click to throw'
+        : id === 'shield'
+          ? ' · desktop: hold Space to raise it'
+          : ' · desktop: sweep the mouse to swing';
+    this.setBanner(w.name.toUpperCase(), w.how.charAt(0).toUpperCase() + w.how.slice(1) + extra);
   }
 
   private beginWave(i: number): void {
@@ -866,6 +882,7 @@ export class Battle implements ArenaCtx {
       for (const tg of m.targets) {
         if (tg.alive && o.pos.distanceTo(tg.center) < tg.radius + o.radius + 0.05) {
           this.damage(m, tg, 2, tmp2.copy(o.vel), 0xbfe3ff, null);
+          if (!m.alive) this.onAchievement?.('mirror');
           this.popOrb(o, 0xbfe3ff);
           break;
         }

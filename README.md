@@ -2,11 +2,11 @@
 
 **Your Hands. Your Shadows. Your World.**
 
-A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the browser. Sit in a candle-lit stone room facing a great wall. Your real tracked hands cast real shadows on it. Form a classic hand-shadow shape, hold it for a second, and the shadow **comes alive** as a creature that acts in the shadow world on the wall.
+A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the browser. Sit in a candle-lit stone room facing a great wall. Your real tracked hands cast real shadows on it. Form a classic hand-shadow shape, hold it for a second, and the shadow **comes alive** as a creature that acts in the shadow world on the wall. Then the monsters come, and **the shadows you make become weapons in your hands**: a fire-edged blade, a firebird to throw, a moon shield, a serpent whip.
 
 - **100% hand tracking.** No controller anywhere: start, menus, pause, restart, co-op and duels are all done with your hands.
 - **Seated and comfortable.** Every interaction is within about 60 cm. No locomotion, no camera movement.
-- **Quick to start, short to finish.** It's playable seconds after loading, and the story takes about 5–8 minutes.
+- **Quick to start.** It's playable seconds after loading. The story with its five battles takes about 10–15 minutes.
 - **Nothing to download.** It runs from an HTTPS link in the Meta Quest Browser.
 
 **Play:** https://howsuyash.github.io/shadow-play/
@@ -54,6 +54,38 @@ Defeating the Shadow Eater awakens the legendary **Shadow Dragon**, which soars 
 
 **Your shadows write the story.** The branches lead to different outcomes and a different cast at the finale, and the ending recaps *your* tale, one line per chapter, with your time and score. If you're stuck, shadow pictures of shapes that would work appear on the wall (after 4 s in the tutorial, 8 s in chapters II–IV, 2.5 s in the boss fight). A creature that doesn't fit the scene looks around, puzzled, and fades away.
 
+## Shadow battles: your shadows become weapons
+
+After each chapter, the Shadow Eater's monsters come for your light. **The shadow wall sinks away**, the world opens into a battlefield, and shadow rifts tear open in front of you. Now the same hand shapes do something new: **the shadow leaves the wall and becomes a real weapon in your hand.** A gold ring spins around your hand while you hold the shape (0.6 s in battle), a dark shadow condenses in your palm, and the weapon bursts into being with a flash and its name.
+
+| Shadow | Becomes | How you fight with it |
+|---|---|---|
+| 🐕 **Dog** | **Hound Blade**, a fire-edged sword with a hound's-ear guard | **Swing** your hand through a monster. Fast swings burn brighter, leave a fiery trail and hit twice as hard. Slash shadow orbs out of the air. |
+| 🐦 **Bird** | **Firebird**, a little bird of flame perched on your palm | **Pinch**, or **flick** your hand forward, to throw it. It homes gently on the monster you threw at and burns through orbs. A new one forms in your hand. |
+| 🐇 **Rabbit** | **Moon Shield**, a moon-silver shield with a rabbit in the crescent | **Block** blows and orbs. A blocked orb **flies straight back at whoever threw it**. Shove the shield into a monster to bash it. |
+| 🐍 **Snake** | **Serpent Whip**, a living serpent on a handle (rope physics) | **Flick your wrist**: the tip outruns your hand, **cracks**, and hits hard at long reach. |
+
+Each hand holds its own weapon (one-hand shapes go to the hand that made them; the two-hand bird goes to your right hand), so you can fight with a **shield in one hand and a blade in the other**. Make a different shape to swap. Weapons you've learned stay with you from battle to battle.
+
+**The monsters** are animated 3D shadow creatures with violet rim light, glowing eyes and a body that breaks into shards when defeated:
+
+- **Shadow Imps** run at you, rear up with claws high (the moment to strike) and lunge.
+- **Wraiths** float out of reach and hurl shadow orbs, then swoop in close to rake you with their claws.
+- **Iron Brutes** are slow and armoured, with a glowing heart. They raise a spiked mace for a long wind-up and slam. Heavy hits stagger them.
+- **The Shadow Eater** is the final boss: a giant with **three glowing cores** (chest and both hands). It hurls orb volleys, calls imps through rifts, and slams a hand down right in front of you, which is your chance to hit that hand's core up close.
+
+| Battle | World | You learn | Waves |
+|---|---|---|---|
+| after I | Sky Kingdom | 🐦 Firebird | wraiths, then wraiths and imps |
+| after II | Shadow Theatre (the temple courtyard) | 🐕 Hound Blade | imps, then imps and a wraith |
+| after III | Forgotten Forest | 🐇 Moon Shield | orb-throwing wraiths, then a mixed wave |
+| after IV | Dark Castle | 🐍 Serpent Whip | Iron Brutes with imps, then everything |
+| after V | Shadow Realm | everything | **the Shadow Eater** |
+
+**Feel:** hits flash the monster gold and knock it back, sparks burst along the swing, big hits drop into a beat of slow motion, and every swing, crack, clang, burn, screech, stomp and death is synthesized live. War drums join each world's song during a battle. Your health is five **life flames** low in your view, with a violet flash when you're hit. Stay safe for a few seconds and they rekindle. If they all go out, *your light fades*: you rise again at full strength and the wave restarts (the boss keeps the cores you've already broken). If you can't make a shape, the featured weapon appears anyway after a while, so nobody gets stuck.
+
+**Story and map:** the run opens with a short prologue (the temple's puppeteers, the Shadow Eater, the last candle, *your shadows remember*). Between chapters the wall shows **the Shadow Atlas**, a hand-drawn parchment map of the five lands, where a candle-flame token travels the road to the next one.
+
 ## Modes
 
 The main menu floats about 36 cm in front of you as two rows of big round buttons (**Story · Duel · Memory / Gallery · Settings · Credits**). **Pinch** (thumb tip to index tip) on one to choose it, or just hold an open palm toward the wall to begin the story.
@@ -74,7 +106,10 @@ While you play, a one-line **objective** sits at the top of the wall, and the na
 | Choose a menu button | **Pinch** on it |
 | Start the story / play again | Hold an **open palm** toward the wall for 1 s |
 | Summon a creature | Hold its shape for 1 s |
-| Pause (story, duel or memory) | Turn **both palms face-up** for 1 s |
+| Pull a weapon into your hand (battles) | Hold its shape for 0.6 s with that hand |
+| Swing the blade / crack the whip / bash with the shield | Move your hand |
+| Throw a firebird | **Pinch**, or flick your hand forward |
+| Pause (story, battles, duel or memory) | Turn **both palms face-up** for 1 s |
 | Pause menu | Pinch **Resume · Restart** (this chapter) **· Recenter · Leave** |
 
 Opening the Quest system menu also pauses the game.
@@ -145,7 +180,10 @@ Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub 
 
 - **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
 - **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.
+- **Battles:** monsters are built from primitives with a fresnel rim-light shader (so they read against any world) and a hit-flash uniform. Each monster's static pieces are merged per moving part, so a monster costs about 20 draw calls. A busy battle with five monsters runs about 150–175 draw calls at 60 fps on an integrated GPU. Battlefields add no real-time lights.
 - **Performance:** it targets 72 fps on Quest. There is one shadow light and no post-processing. Silhouettes are unlit flat geometry, and the hand rigs, partner avatar and particles are single instanced/pooled draw calls. The per-frame path doesn't allocate.
+
+**On a computer** (no headset), *Play on screen* gives a keyboard-and-mouse version for trying it out. Drag to look around; **Enter** starts; **1–4** stand in for the four shapes. In battles **the mouse is your weapon hand**: sweep it to swing the blade or whip, **click** to throw a firebird, **1–4** to change weapon, **Shift + 1–4** for the left hand, and hold **Space** to raise the shield.
 
 ## Code map
 
@@ -169,7 +207,13 @@ src/
   effects/particles.ts, glowHands.ts   sparks + dust, partner avatar
   ui/wallUI.ts            wall text, hold ring, hints, fragments bar, pinch menus
   ui/gallery.ts, lobby.ts, debugOverlay.ts
-tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, memory, progress
+  ui/atlas.ts             the Shadow Atlas map between chapters
+  battle/battle.ts        battles: waves, rifts, collisions, health, HUD, battlefields
+  battle/weapons.ts       Hound Blade, Firebird, Moon Shield, Serpent Whip (verlet rope)
+  battle/monsters.ts      Shadow Imp, Wraith, Iron Brute, the Shadow Eater boss, rifts
+  battle/rig.ts           hand → grip frame + velocity (tracked hands or the mouse)
+  battle/fx.ts            3D sparks, swing trails, rim-lit monster material, mesh merging
+tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, memory, progress, battles
 ```
 
 See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for what's done, what's not, and test results.

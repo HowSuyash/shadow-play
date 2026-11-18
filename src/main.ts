@@ -859,6 +859,8 @@ class Game {
   }
 
   private startRun(): void {
+    this.mainMenu.setVisible(false);
+    for (const t of [...this.titleTexts, ...this.endTexts]) t.hideNow();
     this.finale.hide();
     this.gallery.hide();
     this.duel.stop();
@@ -1219,6 +1221,8 @@ class Game {
     }
     this.poses.setHoldSeconds(BATTLE_HOLD);
     this.poses.reset();
+    this.battle.desktop = !this.world.session && !this.handTest;
+    this.battle.onAchievement = (id) => this.progress.award(id);
     this.battle.start(i);
   }
 
@@ -1279,6 +1283,7 @@ class Game {
     b.update(dt, time, input);
     if (b.finished && this.curtainT < 0) {
       const i = this.battleIndex;
+      this.progress.recordBattle(i, b.damageTaken);
       if (i === BATTLES.length - 1) this.progress.award('dragon');
       this.runCurtain(() => {
         this.exitBattle();

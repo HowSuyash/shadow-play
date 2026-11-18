@@ -4,6 +4,7 @@ import { STAGE } from '../scene/layout.js';
 import { Bird, Dog, Dragon, Rabbit, Snake, type Silhouette } from '../game/creatures.js';
 import { makeGround } from '../game/levels.js';
 import { ACHIEVEMENTS, type Progress } from '../game/progress.js';
+import { WEAPON_INFO, WEAPON_OF } from '../battle/weapons.js';
 import { makeText } from './wallUI.js';
 
 const INFO: Record<PoseId, { name: string; ability: string; how: string }> = {
@@ -67,6 +68,8 @@ export class Gallery {
         STAGE.groundY + 0.58,
       );
       add(makeText([info.how], 0.06, { size: 44, italic: true, color: '#e8c48f' }), x, STAGE.groundY - 0.08);
+      // In battle every creature becomes a weapon.
+      add(makeText([`⚔ ${WEAPON_INFO[WEAPON_OF[p]].name}`], 0.07, { size: 46, color: '#ffd28a' }), x, STAGE.groundY - 0.15);
     });
     const d = progress.data;
     this.dragon.fade(d.legendary ? 1 : 0.15, true);
@@ -78,7 +81,7 @@ export class Gallery {
     const earned = Object.entries(ACHIEVEMENTS)
       .map(([id, a]) => (d.achievements.includes(id) ? `✦ ${a.title}` : '· ? ·'))
       .join('   ');
-    add(makeText([earned], 0.06, { size: 44, color: '#ffe9c4' }), 0, STAGE.groundY - 0.2);
+    add(makeText([earned], 0.06, { size: 44, color: '#ffe9c4' }), 0, STAGE.groundY - 0.27);
     this.root.visible = true;
   }
 
