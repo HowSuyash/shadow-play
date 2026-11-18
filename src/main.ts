@@ -526,8 +526,15 @@ class Game {
         0.27,
         { size: 60, color: '#ffe2a8' },
       );
-      m.position.set(0, STAGE.titleY - 0.45, STAGE.z + 0.01);
-      this.wall.add(m);
+      // During a battle the wall has sunk away: show it in the battlefield instead.
+      if (this.phase === 'battle') {
+        m.scale.setScalar(1.6);
+        m.position.set(0, 1.55, -2.6);
+        this.battle.root.add(m);
+      } else {
+        m.position.set(0, STAGE.titleY - 0.45, STAGE.z + 0.01);
+        this.wall.add(m);
+      }
       this.handsNotice = new Fader(m, 2);
     }
     if (this.handsNotice) {

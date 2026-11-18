@@ -78,10 +78,9 @@ export class Gallery {
       .join('   ');
     const best = d.bestRun === null ? '—' : `${Math.floor(d.bestRun / 60)}:${String(Math.round(d.bestRun % 60)).padStart(2, '0')}`;
     add(makeText([stars, `best story ${best}  ·  duels won ${d.duelWins} / ${d.duelPlayed}  ·  memory ${d.memoryBest ?? 0}`], 0.12, { size: 50 }), 0, STAGE.titleY + 0.03);
-    const earned = Object.entries(ACHIEVEMENTS)
-      .map(([id, a]) => (d.achievements.includes(id) ? `✦ ${a.title}` : '· ? ·'))
-      .join('   ');
-    add(makeText([earned], 0.06, { size: 44, color: '#ffe9c4' }), 0, STAGE.groundY - 0.27);
+    const earned = Object.entries(ACHIEVEMENTS).map(([id, a]) => (d.achievements.includes(id) ? `✦ ${a.title}` : '· ? ·'));
+    const half = Math.ceil(earned.length / 2);
+    add(makeText([earned.slice(0, half).join('   '), earned.slice(half).join('   ')], 0.11, { size: 44, color: '#ffe9c4' }), 0, STAGE.groundY - 0.3);
     this.root.visible = true;
   }
 
