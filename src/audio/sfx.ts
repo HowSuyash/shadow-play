@@ -117,6 +117,8 @@ export class Sfx {
   private musicTimer: ReturnType<typeof setInterval> | undefined;
   private nextStep = 0;
   private musicStep = 0;
+  /** 0 = calm, 1 = battle, 2 = boss battle: adds war drums to the song. */
+  private battle = 0;
   private melodyIdx = 3;
 
   /** Per-world song: tempo, scale (semitones), root, lead voice, rhythm. */
@@ -163,6 +165,15 @@ export class Sfx {
   private playStep(song: (typeof Sfx.SONGS)[string], step: number, t: number, dur: number): void {
     const bus = this.musicBus!;
     const p = song.perc[step % song.perc.length];
+    // Battle: war drums and a low pulse on top of the world's song.
+    if (this.battle > 0) {
+      const war = this.battle > 1 ? 'T.tTT.t.T.tTT.tt' : 'T...t.T.T...t.t.';
+      const w = war[step % 16];
+      if (w === 'T') this.drum(t, 85, 36, 0.7, 0.42);
+      if (w === 't') this.drum(t, 130, 62, 0.3, 0.22);
+      if (step % 4 === 2) this.hit(t, 7000, 1, 0.04, 0.035);
+      if (step % 2 === 0) this.voice('sawbass', this.freq(song, step % 16 < 8 ? 0 : -3) / 2, t, dur * 1.2, 0.07, bus);
+    }
     if (p === 'D') this.drum(t, 110, 55, 0.5, 0.35); // tabla "dha"
     if (p === 'd') this.drum(t, 150, 90, 0.25, 0.2);
     if (p === 'n') this.hit(t, 2600, 6, 0.12, 0.08); // tabla "na"
@@ -595,6 +606,223 @@ export class Sfx {
     const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5];
     notes.forEach((f, i) => this.tone(f, t + i * 0.16, i === notes.length - 1 ? 2 : 0.4, 'triangle', 0.13));
     [261.63, 329.63, 392].forEach((f) => this.tone(f, t + 0.96, 2.2, 'sine', 0.08));
+  }
+
+  // -------------------------------------------------------------------------
+  // Battle sounds
+
+  setBattle(level: 0 | 1 | 2): void {
+    this.battle = level;
+  }
+
+  private get live(): boolean {
+    return !!this.ctx && this.ctx.state === 'running';
+  }
+
+  /** A blade or whip cutting the air; faster swings are brighter. */
+  swoosh(intensity: number): void {
+    if (!this.live) return;
+    const t = this.now;
+    const f = this.noise(t, 0.22, 'bandpass', 500 + intensity * 900, 1.4, 0.12 + intensity * 0.14, 0.04);
+    f.frequency.exponentialRampToValueAtTime(1800 + intensity * 2600, t + 0.2);
+  }
+
+  /** Weapon connects with a monster. */
+  impact(heavy: boolean): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.tone(heavy ? 70 : 110, t, heavy ? 0.35 : 0.2, 'sine', heavy ? 0.5 : 0.35);
+    this.noise(t, heavy ? 0.18 : 0.1, 'lowpass', heavy ? 900 : 1600, 1, heavy ? 0.45 : 0.3);
+    this.noise(t + 0.01, 0.06, 'highpass', 3500, 1, 0.12);
+  }
+
+  /** The serpent whip's crack. */
+  crack(): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.noise(t, 0.03, 'highpass', 2500, 0.7, 0.55, 0.001);
+    this.noise(t + 0.012, 0.09, 'bandpass', 1400, 2, 0.2, 0.002);
+  }
+
+  /** Something bounces off the Moon Shield. */
+  clang(): void {
+    if (!this.live) return;
+    const t = this.now;
+    [523, 1237, 1871, 2650].forEach((f, i) => this.tone(f, t, 0.9 - i * 0.15, 'sine', 0.09 - i * 0.015));
+    this.noise(t, 0.05, 'highpass', 3000, 1, 0.2, 0.001);
+  }
+
+  /** A firebird leaves the hand. */
+  throwFire(): void {
+    if (!this.live) return;
+    const ctx = this.ctx!;
+    const t = this.now;
+    const f = this.noise(t, 0.35, 'bandpass', 700, 2, 0.22, 0.02);
+    f.frequency.exponentialRampToValueAtTime(3200, t + 0.3);
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(600, t);
+    o.frequency.exponentialRampToValueAtTime(1500, t + 0.25);
+    this.env(g, t, 0.07, 0.01, 0.25);
+    o.connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.3);
+  }
+
+  /** Firebird bursts into flame on impact. */
+  burn(): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.noise(t, 0.45, 'lowpass', 1200, 0.8, 0.35, 0.005);
+    this.tone(160, t, 0.3, 'sine', 0.25);
+  }
+
+  /** Imp screech: a nasty formant squeal. */
+  screech(): void {
+    if (!this.live) return;
+    const ctx = this.ctx!;
+    const t = this.now;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const base = 500 + Math.random() * 300;
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.exponentialRampToValueAtTime(base * 1.7, t + 0.12);
+    o.frequency.exponentialRampToValueAtTime(base * 0.8, t + 0.4);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1400;
+    bp.Q.value = 4;
+    const g = ctx.createGain();
+    this.env(g, t, 0.08, 0.03, 0.4);
+    o.connect(bp).connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 0.5);
+  }
+
+  /** Brute growl. */
+  growl(): void {
+    if (!this.live) return;
+    const ctx = this.ctx!;
+    const t = this.now;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(90, t);
+    o.frequency.linearRampToValueAtTime(70, t + 0.8);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 500;
+    const g = ctx.createGain();
+    this.env(g, t, 0.22, 0.08, 0.8);
+    o.connect(lp).connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 1);
+    this.noise(t, 0.7, 'bandpass', 400, 2, 0.12, 0.08);
+  }
+
+  /** Heavy footstep. */
+  stomp(): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.tone(55, t, 0.25, 'sine', 0.3);
+    this.noise(t, 0.08, 'lowpass', 300, 1, 0.2);
+  }
+
+  /** A shadow orb gathering in a caster's hands. */
+  castOrb(): void {
+    if (!this.live) return;
+    const ctx = this.ctx!;
+    const t = this.now;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1);
+    g.connect(this.master);
+    for (const detune of [1, 1.015]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(200 * detune, t);
+      o.frequency.exponentialRampToValueAtTime(700 * detune, t + 0.85);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 1.05);
+    }
+  }
+
+  /** Ground slam. */
+  slam(): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.tone(45, t, 0.6, 'sine', 0.55);
+    this.noise(t, 0.5, 'lowpass', 400, 1, 0.45, 0.003);
+    this.noise(t + 0.02, 0.25, 'bandpass', 1200, 1, 0.15);
+  }
+
+  /** A monster bursts into shadow shards. */
+  monsterDie(big: boolean): void {
+    if (!this.live) return;
+    const t = this.now;
+    const f = this.noise(t, big ? 1.2 : 0.6, 'bandpass', big ? 900 : 1800, 1.5, big ? 0.4 : 0.25, 0.01);
+    f.frequency.exponentialRampToValueAtTime(big ? 150 : 400, t + (big ? 1.1 : 0.55));
+    [1046.5, 1318.5, 1568].forEach((fq, i) => this.tone(fq * (big ? 0.5 : 1), t + 0.05 + i * 0.05, 0.5, 'triangle', 0.05));
+  }
+
+  /** The player is hit. */
+  hurt(): void {
+    if (!this.live) return;
+    const t = this.now;
+    this.tone(80, t, 0.4, 'sine', 0.5);
+    this.tone(160, t, 0.25, 'square', 0.06);
+    this.noise(t, 0.3, 'lowpass', 600, 1, 0.3);
+  }
+
+  /** A shadow becomes a weapon in your hand. */
+  summonWeapon(): void {
+    if (!this.live) return;
+    const t = this.now;
+    const f = this.noise(t, 0.6, 'bandpass', 300, 3, 0.18, 0.2);
+    f.frequency.exponentialRampToValueAtTime(4000, t + 0.55);
+    [523.25, 783.99, 1046.5, 1567.98].forEach((fq, i) => this.tone(fq, t + 0.3 + i * 0.06, 0.8, 'triangle', 0.07));
+    this.tone(130, t + 0.55, 0.5, 'sine', 0.3);
+  }
+
+  /** War horn: a wave begins. */
+  horn(): void {
+    if (!this.live) return;
+    const ctx = this.ctx!;
+    const t = this.now;
+    const parts: [number, number][] = [
+      [146.83, 0],
+      [147.6, 0],
+      [220, 0.02],
+    ];
+    for (const [f, d] of parts) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f * 0.94, t + d);
+      o.frequency.linearRampToValueAtTime(f, t + d + 0.25);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(400, t);
+      lp.frequency.linearRampToValueAtTime(1300, t + 0.5);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t + d);
+      g.gain.exponentialRampToValueAtTime(0.12, t + d + 0.2);
+      g.gain.setValueAtTime(0.12, t + d + 1.0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d + 1.6);
+      o.connect(lp).connect(g).connect(this.master);
+      o.start(t + d);
+      o.stop(t + d + 1.7);
+    }
+  }
+
+  /** A shadow rift tearing open. */
+  riftOpen(): void {
+    if (!this.live) return;
+    const t = this.now;
+    const f = this.noise(t, 0.8, 'bandpass', 2400, 2, 0.12, 0.15);
+    f.frequency.exponentialRampToValueAtTime(260, t + 0.8);
+    this.tone(62, t, 0.8, 'sine', 0.15);
   }
 }
 

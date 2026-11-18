@@ -351,7 +351,7 @@ const PICTOGRAMS: Record<PoseId, (ctx: Ctx) => void> = {
   },
 };
 
-function pictogramTexture(pose: PoseId): CanvasTexture {
+export function pictogramTexture(pose: PoseId): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const ctx = c.getContext('2d')!;
@@ -367,7 +367,7 @@ function pictogramTexture(pose: PoseId): CanvasTexture {
   return t;
 }
 
-const POSE_CAPTIONS: Record<PoseId, string[]> = {
+export const POSE_CAPTIONS: Record<PoseId, string[]> = {
   dog: ['Make a DOG', 'flat hand · thumb up · pinky down'],
   bird: ['Make a BIRD', 'hook your thumbs · spread your fingers'],
   rabbit: ['Make a RABBIT', 'two fingers up · curl the rest'],

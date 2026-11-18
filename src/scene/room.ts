@@ -120,6 +120,8 @@ export class Room {
   readonly light: SpotLight;
   /** Candle light position in room-local space (constant). */
   readonly lightPos = CANDLE_FLAME.clone();
+  /** The shadow wall itself (it sinks away for battles). */
+  wallMesh!: Mesh;
 
   private readonly flame: Mesh;
   private readonly flameCore: Mesh;
@@ -142,6 +144,7 @@ export class Room {
     wall.position.set(0, 2.0, WALL_Z);
     wall.receiveShadow = true;
     this.root.add(wall);
+    this.wallMesh = wall;
 
     // --- Surrounding rough stone (floor, sides, ceiling) — one shared material.
     const roughTex = stoneTexture([92, 74, 60], false, 21);

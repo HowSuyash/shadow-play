@@ -1105,6 +1105,7 @@ function realm(): WorldSet {
   const eyes = glowPoints([-0.75, 10.9, 1.9, 0.75, 10.9, 1.9], 0xb070ff, 1.4);
   giant.add(eyes);
   giant.position.set(0, -2, -9);
+  giant.name = 'shadow-eater-giant';
   root.add(giant);
 
   // Moonlight falling on the arena, and lightning in the distance.

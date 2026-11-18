@@ -1,6 +1,7 @@
-import { BackSide, Color, createSystem, Group, Mesh, MeshBasicMaterial, SphereGeometry, Vector3, VisibilityState, World } from '@iwsdk/core';
+import { BackSide, Color, createSystem, Group, Mesh, MeshBasicMaterial, Quaternion, SphereGeometry, Vector3, VisibilityState, World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { sfx } from './audio/sfx.js';
+import { Battle, BATTLES, type BattleInput } from './battle/battle.js';
 import { PassageLevel, ShadowEaterLevel } from './game/finalLevels.js';
 import { ChasmLevel, Finale, ThiefLevel, WallLevel, type Level } from './game/levels.js';
 import { ACHIEVEMENTS, Progress } from './game/progress.js';
@@ -17,11 +18,12 @@ import { STAGE } from './scene/layout.js';
 import { Room } from './scene/room.js';
 import { Worlds, type WorldId } from './scene/worlds.js';
 import { DebugOverlay } from './ui/debugOverlay.js';
+import { Atlas } from './ui/atlas.js';
 import { Gallery } from './ui/gallery.js';
 import { Lobby } from './ui/lobby.js';
 import { Fader, Flash, FragmentBar, Hint, HoldRing, MainMenu, makeText, PauseMenu, PinchMenu, projectToWall } from './ui/wallUI.js';
 
-type Phase = 'title' | 'level' | 'end' | 'gallery' | 'duel' | 'memory' | 'credits';
+type Phase = 'title' | 'story' | 'map' | 'level' | 'battle' | 'end' | 'gallery' | 'duel' | 'memory' | 'credits';
 
 /** Seconds each alternative answer's hint stays up before switching. */
 const HINT_CYCLE = 4;
@@ -33,6 +35,17 @@ const CURTAIN = 0.8;
 const PARTNER_OFFSET = 0.2;
 /** Score bonus for each giant duet creature. */
 const DUET_BONUS = 250;
+/** Hold time for a shadow → weapon in battle (faster than the story's 1 s). */
+const BATTLE_HOLD = 0.6;
+
+/** The prologue: how the player discovers the power of shadows. */
+const PROLOGUE: string[][] = [
+  ['Long ago, the puppeteers of this temple', 'could make their shadows come alive.'],
+  ['Then the Shadow Eater swallowed the light,', 'and its monsters crept out of the dark.'],
+  ['Tonight one candle still burns.', 'Raise your hands. Your shadows remember.'],
+  ['Every shadow you make can leave the wall', 'and become a weapon in your hands.'],
+];
+const PROLOGUE_CARD = 4.6;
 
 /**
  * Game state machine: TITLE (main menu) → LEVEL I..V → END, plus GALLERY and
@@ -116,6 +129,34 @@ class Game {
 
   phase: Phase = 'title';
   paused = false;
+  /** Monster battles between chapters (solo). */
+  readonly battle = new Battle();
+  /** The Shadow Atlas map shown between chapters. */
+  readonly atlas = new Atlas();
+  private battleIndex = 0;
+  private battleScore = 0;
+  private battleKills = 0;
+  private mapNext = 0;
+  private mapT = 0;
+  private storyIndex = 0;
+  private storyT = 0;
+  private storyTexts: Fader[] = [];
+  /** Desktop battle: the mouse is your sword hand. */
+  readonly mouse = { x: 0, y: -0.2, down: false, clicked: false, shift: false, space: false, shiftAt: -1e9 };
+  private savedCam: { p: Vector3; q: Quaternion } | undefined;
+  private readonly battleInput: BattleInput = {
+    head: new Vector3(),
+    headDir: new Vector3(),
+    pose: undefined as unknown as BattleInput['pose'],
+    poses: undefined as unknown as BattleInput['poses'],
+    equip: null,
+    aim: null,
+  };
+  private readonly aimDir = new Vector3();
+  private readonly v1 = new Vector3();
+  private readonly v2 = new Vector3();
+  private readonly v3 = new Vector3();
+  private readonly v4 = new Vector3();
   private lastDt = 0;
   private readonly menuPinchPoints: Vector3[] = [];
   private readonly menuPinchStarted: boolean[] = [];
@@ -153,7 +194,9 @@ class Game {
     this.duel = new Duel(this.hint, 'host', false, (e) => this.coop?.send(e));
     this.worlds = new Worlds(world.renderer);
     this.room.wallMaterial.envMapIntensity = 0; // keep hand shadows deep
-    this.room.root.add(this.particles.points, this.worlds.root, this.myGlow.root);
+    this.room.root.add(this.particles.points, this.worlds.root, this.myGlow.root, this.battle.root);
+    world.camera.add(this.battle.hud);
+    this.battleInput.poses = this.poses;
     this.fade.renderOrder = 1000;
     this.fade.frustumCulled = false;
     this.fade.visible = false;
@@ -189,7 +232,7 @@ class Game {
       new PassageLevel(this.room),
       new ShadowEaterLevel(this.room),
     ];
-    this.wall.add(this.finale.root, this.fragments.root);
+    this.wall.add(this.finale.root, this.fragments.root, this.atlas.root);
     this.levelTitles = this.levels.map((l) => {
       const m = makeText([`${l.numeral} · ${l.title}`], 0.2, { size: 80, letterSpacing: 4 });
       m.position.set(0, STAGE.titleY, STAGE.z);
@@ -217,9 +260,10 @@ class Game {
     const inLevel = this.phase === 'level' && this.level !== undefined;
     const levelReady = inLevel && !this.paused && !this.level!.busy && !this.level!.solved && this.curtainT < 0;
     // Pause (palms up) works wherever you're playing: story, duel or memory.
-    const playing = inLevel || this.phase === 'duel' || this.phase === 'memory';
+    const inBattle = this.phase === 'battle' && this.battle.active;
+    const playing = inLevel || inBattle || this.phase === 'duel' || this.phase === 'memory';
     const canPause = playing && !this.paused && this.curtainT < 0;
-    const openPalmPhase = this.phase === 'title' || this.phase === 'end' || this.phase === 'gallery';
+    const openPalmPhase = this.phase === 'title' || this.phase === 'end' || this.phase === 'gallery' || this.phase === 'story' || this.phase === 'map';
     const g = this.gestures.update(dt, openPalmPhase && this.curtainT < 0, canPause);
     // Co-op "shadow duet": the host's summon only charges while the partner holds a shape too.
     // (If the partner isn't tracking hands yet, e.g. still on the 2D page, play on solo.)
@@ -227,7 +271,8 @@ class Game {
     const partnerHolding = !this.duetMode || !partnerInVR || this.coop!.partnerCharging !== null;
     const duelOpen = this.phase === 'duel' && !this.paused && this.duel.open && this.curtainT < 0;
     const memoryOpen = this.phase === 'memory' && !this.paused && this.memory.listening && this.curtainT < 0;
-    const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen || memoryOpen);
+    const battleReady = inBattle && !this.paused && this.curtainT < 0 && this.battle.state !== 'won' && this.battle.state !== 'down';
+    const pose = this.poses.update(dt, (levelReady && (this.isGuest || partnerHolding)) || duelOpen || memoryOpen || battleReady);
 
     if (this.coop) {
       this.coop.update(dt, this.hands.left, this.hands.right, this.localCharging(), pose.progress);
@@ -238,6 +283,9 @@ class Game {
     if (this.paused && playing) this.updatePaused(dt);
     else if (this.phase === 'title' || this.phase === 'end') this.updateMenuScreen(g.start);
     else if (this.phase === 'gallery' || this.phase === 'credits') this.updateGallery(g.start);
+    else if (this.phase === 'story') this.updateStory(dt, g.start);
+    else if (this.phase === 'map') this.updateMap(dt, g.start);
+    else if (inBattle) this.updateBattle(dt, time, pose, g.pause);
     else if ((this.phase === 'duel' || this.phase === 'memory') && (g.pause || this.debugKey('KeyP'))) this.request({ t: 'pause' });
     else if (this.phase === 'duel') this.updateDuel(pose);
     else if (this.phase === 'memory') this.updateMemory(pose);
@@ -281,6 +329,8 @@ class Game {
     for (const t of this.levelSubtitles) t.update(dt);
     this.fragments.update(dt, time);
     for (const t of this.endTexts) t.update(dt);
+    for (const t of this.storyTexts) t.update(dt);
+    this.atlas.update(dt, time);
 
     // Desktop debug: D per spec; backquote too, because the IWER emulator uses WASD.
     if (this.debugKey('KeyD') || this.debugKey('Backquote')) this.debug.toggle();
@@ -341,6 +391,10 @@ class Game {
   /** Back to the title / main menu (from anywhere). */
   private enterTitle(): void {
     if (this.paused) this.resume();
+    this.exitBattle();
+    this.battle.stop(true);
+    this.atlas.hideNow();
+    this.clearStory();
     this.level?.exit();
     this.level = undefined;
     this.finale.hide();
@@ -791,6 +845,10 @@ class Game {
     // Restart whatever is being played.
     if (this.phase === 'duel') return this.enterDuel();
     if (this.phase === 'memory') return this.enterMemory();
+    if (this.phase === 'battle') {
+      this.battle.restartWave();
+      return;
+    }
     this.hint.show(null);
     this.levelTitles.forEach((t) => t.show(false));
     this.levelSubtitles.forEach((t) => t.show(false));
@@ -809,7 +867,10 @@ class Game {
     this.hintsUsed = 0;
     this.wrongCreatures = 0;
     this.duets = 0;
-    this.enterLevel(0);
+    this.battleScore = 0;
+    this.battleKills = 0;
+    this.battle.stop(true);
+    this.enterStory();
   }
 
   private enterLevel(i: number): void {
@@ -836,7 +897,7 @@ class Game {
   // Pause: both palms up for 1 s → pinch Resume / Restart.
 
   pause(): void {
-    if ((this.phase !== 'level' && this.phase !== 'duel' && this.phase !== 'memory') || this.paused) return;
+    if ((this.phase !== 'level' && this.phase !== 'duel' && this.phase !== 'memory' && this.phase !== 'battle') || this.paused) return;
     this.paused = true;
     this.menu.setVisible(true);
     this.ring.set(0);
@@ -972,7 +1033,9 @@ class Game {
       this.solvedTimer += dt;
       if (this.solvedTimer > SOLVED_LINGER + 0.6) {
         const next = this.levelIndex + 1;
-        this.runCurtain(() => (next < this.levels.length ? this.enterLevel(next) : this.enterEnd()));
+        // Solo: the chapter's monsters attack before you move on. (Co-op keeps the shadow story.)
+        if (!this.coop && BATTLES[this.levelIndex]) this.runCurtain(() => this.enterBattle(this.levelIndex));
+        else this.runCurtain(() => (next < this.levels.length ? this.showMap(next) : this.enterEnd()));
       }
     }
   }
@@ -1013,7 +1076,7 @@ class Game {
     const story = this.levels.map((l) => l.storyLine());
     sfx.fanfare();
     const secs = Math.round(this.runTime);
-    const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50) + this.duets * DUET_BONUS;
+    const score = Math.max(100, 3000 - secs * 5 - this.hintsUsed * 150 - this.wrongCreatures * 50) + this.duets * DUET_BONUS + this.battleScore;
     const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     for (const f of this.endTexts) {
       f.mesh.removeFromParent();
@@ -1027,7 +1090,8 @@ class Game {
     const tale = makeText(story, 0.4, { size: 50, italic: true, color: '#ffe9c4' });
     tale.position.set(0, STAGE.titleY - 0.33, STAGE.z);
     const duetNote = this.duets ? `  ·  ${this.duets} duet${this.duets > 1 ? 's' : ''}` : '';
-    const stats = makeText([`time ${time}  ·  score ${score}${duetNote}`], 0.15, { size: 60 });
+    const killNote = this.battleKills ? `  ·  ${this.battleKills} monsters defeated` : '';
+    const stats = makeText([`time ${time}  ·  score ${score}${duetNote}${killNote}`], 0.15, { size: 60 });
     stats.position.set(0, STAGE.titleY - 0.63, STAGE.z);
     const again = makeText(['open palm to play again · or pinch a button'], 0.12, { size: 52 });
     again.position.set(0, STAGE.groundY - 0.08, STAGE.z);
@@ -1059,9 +1123,221 @@ class Game {
     if (this.curtainT >= 2 * CURTAIN) this.curtainT = -1;
   }
 
+  // -------------------------------------------------------------------------
+  // Prologue → Shadow Atlas → chapter (puzzle) → battle → Atlas → …
+
+  private enterStory(): void {
+    this.phase = 'story';
+    this.storyIndex = -1;
+    this.storyT = PROLOGUE_CARD;
+    this.clearStory();
+  }
+
+  private clearStory(): void {
+    for (const f of this.storyTexts) {
+      f.mesh.removeFromParent();
+      (f.mesh.material as MeshBasicMaterial).map?.dispose();
+    }
+    this.storyTexts = [];
+  }
+
+  private updateStory(dt: number, openPalm: boolean): void {
+    if (this.curtainT >= 0) return;
+    this.storyT += dt;
+    const skip = this.menuPinchStarted.some((s) => s) || openPalm || this.debugKey('Enter') || this.debugKey('Space');
+    if (this.storyT < PROLOGUE_CARD && !(skip && this.storyT > 0.6)) return;
+    this.storyIndex++;
+    this.storyT = 0;
+    for (const f of this.storyTexts) f.show(false);
+    if (this.storyIndex >= PROLOGUE.length) {
+      this.runCurtain(() => {
+        this.clearStory();
+        this.showMap(0);
+      });
+      return;
+    }
+    const lines = PROLOGUE[this.storyIndex];
+    const m = makeText(lines, 0.3, { size: 72, italic: true, color: '#fff1d6' });
+    m.position.set(0, STAGE.titleY - 0.15, STAGE.z + 0.005);
+    this.wall.add(m);
+    this.storyTexts.push(new Fader(m, 1.6).show());
+    // Old cards fade out, then go.
+    if (this.storyTexts.length > 2) {
+      const old = this.storyTexts.shift()!;
+      old.mesh.removeFromParent();
+      (old.mesh.material as MeshBasicMaterial).map?.dispose();
+    }
+    this.particles.burst(this.wallPoint.set(0, STAGE.groundY + 0.35, STAGE.z), 30, 0.5);
+    sfx.note(this.storyIndex + 2);
+  }
+
+  /** The Shadow Atlas: the candle token travels to the next land. */
+  private showMap(next: number): void {
+    this.phase = 'map';
+    this.mapNext = next;
+    this.mapT = 0;
+    this.applyWorld(this.levels[next].world);
+    this.atlas.show(Math.max(0, next - 1), next);
+  }
+
+  private updateMap(dt: number, openPalm: boolean): void {
+    if (this.curtainT >= 0) return;
+    this.mapT += dt;
+    const skip = (this.menuPinchStarted.some((s) => s) || openPalm || this.debugKey('Enter') || this.debugKey('Space')) && this.mapT > 0.8;
+    if (this.mapT > 4.6 || skip) {
+      const i = this.mapNext;
+      this.runCurtain(() => {
+        this.atlas.hideNow();
+        this.enterLevel(i);
+      });
+    }
+  }
+
+  /** The wall sinks away and the chapter's monsters pour out of rifts. */
+  private enterBattle(i: number): void {
+    this.level?.exit();
+    this.level = undefined;
+    this.hint.show(null);
+    this.ring.set(0);
+    for (const t of [...this.levelTitles, ...this.levelSubtitles]) t.hideNow();
+    this.phase = 'battle';
+    this.battleIndex = i;
+    const def = BATTLES[i];
+    this.applyWorld(def.world);
+    this.room.wallMesh.visible = false;
+    this.wall.visible = false;
+    const giant = this.worlds.root.getObjectByName('shadow-eater-giant');
+    if (giant) giant.visible = !def.boss;
+    // Desktop: sit in the player's seat (the room camera normally frames the wall).
+    if (!this.world.session) {
+      const cam = this.world.camera;
+      this.savedCam = { p: cam.position.clone(), q: cam.quaternion.clone() };
+      cam.position.set(0, 1.2, 0.05);
+      cam.rotation.set(0.04, 0, 0, 'YXZ');
+    }
+    this.poses.setHoldSeconds(BATTLE_HOLD);
+    this.poses.reset();
+    this.battle.start(i);
+  }
+
+  private exitBattle(): void {
+    if (!this.battle.active && this.wall.visible) return;
+    this.battleKills += this.battle.kills;
+    this.battleScore += this.battle.score;
+    this.battle.stop();
+    this.room.wallMesh.visible = true;
+    this.wall.visible = true;
+    const giant = this.worlds.root.getObjectByName('shadow-eater-giant');
+    if (giant) giant.visible = true;
+    if (this.savedCam && !this.world.session) {
+      this.world.camera.position.copy(this.savedCam.p);
+      this.world.camera.quaternion.copy(this.savedCam.q);
+    }
+    this.savedCam = undefined;
+    this.poses.setHoldSeconds(1);
+    this.poses.reset();
+    sfx.setChime(0);
+  }
+
+  private updateBattle(dt: number, time: number, pose: PoseResult, pauseFired: boolean): void {
+    this.runTime += dt;
+    if (pauseFired || this.debugKey('KeyP')) {
+      this.request({ t: 'pause' });
+      return;
+    }
+    const input = this.battleInput;
+    const cam = this.world.camera;
+    // Head position and gaze, room space.
+    cam.getWorldPosition(this.v1);
+    this.room.root.worldToLocal(input.head.copy(this.v1));
+    cam.getWorldDirection(input.headDir);
+    input.pose = pose;
+    input.equip = null;
+    input.aim = null;
+    const b = this.battle;
+    if (this.world.session) {
+      b.rigs.left.fromHand(this.poses.left, this.gestures.pinchL.down, this.gestures.pinchL.started, dt);
+      b.rigs.right.fromHand(this.poses.right, this.gestures.pinchR.down, this.gestures.pinchR.started, dt);
+    } else {
+      this.desktopRigs(dt, input);
+    }
+    // Desktop: number keys put a weapon in the mouse hand (Shift: the left hand).
+    if (!this.world.session) {
+      const shift = this.mouse.shift || performance.now() - this.mouse.shiftAt < 300;
+      const keys: [string, PoseId][] = [
+        ['Digit1', 'dog'],
+        ['Digit2', 'bird'],
+        ['Digit3', 'rabbit'],
+        ['Digit4', 'snake'],
+      ];
+      for (const [code, p] of keys) if (this.debugKey(code)) input.equip = { pose: p, hand: shift ? 'left' : 'right' };
+    }
+    // Desktop/debug: N wins the current wave (testing only).
+    if (this.debugKey('KeyN')) for (const m of b.monsters) for (const t of m.targets) if (t.alive) m.hit(t, 99, this.v1.set(0, 0, -1));
+    b.update(dt, time, input);
+    if (b.finished && this.curtainT < 0) {
+      const i = this.battleIndex;
+      if (i === BATTLES.length - 1) this.progress.award('dragon');
+      this.runCurtain(() => {
+        this.exitBattle();
+        const next = i + 1;
+        if (next < this.levels.length) this.showMap(next);
+        else this.enterEnd();
+      });
+    }
+  }
+
+  /**
+   * Desktop battle hands: the right hand follows the mouse 55 cm out along
+   * the cursor ray (its weapon points into the scene); the left hand holds a
+   * guard low-left and raises it while Space is held.
+   */
+  private desktopRigs(dt: number, input: BattleInput): void {
+    const cam = this.world.camera;
+    const b = this.battle;
+    const room = this.room.root;
+    const d = this.desk;
+    // Ray through the cursor.
+    cam.getWorldPosition(this.v1);
+    this.v2.set(this.mouse.x, this.mouse.y, 0.5).unproject(cam).sub(this.v1).normalize();
+    this.aimDir.copy(this.v2);
+    room.worldToLocal(this.v3.copy(this.v1).addScaledVector(this.v2, 0.55));
+    d.up.set(0, 1, 0);
+    d.right.crossVectors(this.v2, d.up).normalize();
+    d.side.copy(d.up).multiplyScalar(0.35).addScaledVector(this.v2, 0.65).normalize();
+    d.normal.copy(d.right).negate();
+    b.rigs.right.fromFrame(this.v3, this.v2, d.side, d.normal, this.mouse.down, this.mouse.clicked, dt);
+    this.mouse.clicked = false;
+    input.aim = this.aimDir;
+    // Left guard: low-left, raised in front of you while Space is held.
+    if (this.mouse.space) d.local.set(-0.05, -0.07, -0.36);
+    else d.local.set(-0.2, -0.2, -0.42);
+    room.worldToLocal(cam.localToWorld(this.v4.copy(d.local)));
+    cam.getWorldDirection(d.fwd);
+    cam.getWorldQuaternion(d.q);
+    d.camUp.set(0, 1, 0).applyQuaternion(d.q);
+    b.rigs.left.fromFrame(this.v4, d.fwd, d.camUp, d.fwd, false, false, dt);
+  }
+  private readonly desk = {
+    up: new Vector3(),
+    right: new Vector3(),
+    side: new Vector3(),
+    normal: new Vector3(),
+    local: new Vector3(),
+    fwd: new Vector3(),
+    camUp: new Vector3(),
+    q: new Quaternion(),
+  };
+
   private describe(): string {
     if (this.phase === 'memory') return `${this.paused ? 'PAUSED  ' : ''}memory ${this.memory.phase} ${this.memory.index}/${this.memory.seq.length} lives ${this.memory.lives} best ${this.memory.best} seq ${this.memory.seq.join(',')}`;
     if (this.phase === 'duel') return `${this.paused ? 'PAUSED  ' : ''}duel round ${this.duel.round + 1} ${this.duel.open ? 'open' : ''}${this.duel.done ? ' DONE' : ''} score ${this.duel.score.host}-${this.duel.score.guest}`;
+    if (this.phase === 'battle') {
+      const b = this.battle;
+      return `${this.paused ? 'PAUSED  ' : ''}battle ${b.index + 1} ${b.state} wave ${b.wave + 1} hp ${b.hp.toFixed(1)} monsters ${b.monsters.length} kills ${b.kills} score ${b.score} L:${b.weapons.left?.id ?? '-'} R:${b.weapons.right?.id ?? '-'}`;
+    }
+    if (this.phase === 'map') return `map → chapter ${this.mapNext + 1}`;
+    if (this.phase === 'story') return `story card ${this.storyIndex + 1}/${PROLOGUE.length}`;
     if (this.phase !== 'level' || !this.level) return this.phase;
     const l = this.level;
     return `${this.paused ? 'PAUSED  ' : ''}level ${l.numeral} "${l.title}"${l.busy ? ' (cutscene)' : ''}${l.solved ? ' SOLVED' : ''}  clock ${this.levelClock.toFixed(1)}s`;
@@ -1115,7 +1391,7 @@ class ShadowPlaySystem extends createSystem({}) {
  * Desktop only: drag with the mouse (or a finger) to look around the 3D
  * world. In VR the headset drives the camera, so this does nothing there.
  */
-function setupDesktopLook(world: World): void {
+function setupDesktopLook(world: World, g: Game): void {
   const el = document.getElementById('scene-container');
   if (!el) return;
   const cam = world.camera;
@@ -1125,8 +1401,19 @@ function setupDesktopLook(world: World): void {
   let dragging = false;
   let lx = 0;
   let ly = 0;
+  const toMouse = (e: PointerEvent) => {
+    const r = el.getBoundingClientRect();
+    g.mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    g.mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  };
   el.addEventListener('pointerdown', (e) => {
     if (world.session) return;
+    if (g.phase === 'battle') {
+      toMouse(e);
+      g.mouse.down = true;
+      g.mouse.clicked = true;
+      return;
+    }
     if (!base) {
       cam.rotation.order = 'YXZ';
       base = { x: cam.rotation.x, y: cam.rotation.y, z: cam.rotation.z };
@@ -1135,8 +1422,25 @@ function setupDesktopLook(world: World): void {
     lx = e.clientX;
     ly = e.clientY;
   });
-  window.addEventListener('pointerup', () => (dragging = false));
+  const keys = (e: KeyboardEvent, down: boolean) => {
+    g.mouse.shift = e.shiftKey;
+    if (down && e.shiftKey) g.mouse.shiftAt = performance.now();
+    if (e.code === 'Space') {
+      g.mouse.space = down;
+      if (g.phase === 'battle') e.preventDefault();
+    }
+  };
+  window.addEventListener('keydown', (e) => keys(e, true));
+  window.addEventListener('keyup', (e) => keys(e, false));
+  window.addEventListener('pointerup', () => {
+    dragging = false;
+    g.mouse.down = false;
+  });
   window.addEventListener('pointermove', (e) => {
+    if (!world.session && g.phase === 'battle') {
+      toMouse(e);
+      return;
+    }
     if (!dragging || world.session || !base) return;
     yaw -= (e.clientX - lx) * 0.005;
     pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - ly) * 0.005));
@@ -1217,7 +1521,7 @@ World.create(
   world.createTransformEntity(game.room.root, { persistent: true });
   world.registerSystem(ShadowPlaySystem);
   setupLobby(world, game);
-  setupDesktopLook(world);
+  setupDesktopLook(world, game);
   // Opening the Quest system menu pauses the game.
   world.visibilityState.subscribe((state) => {
     if (state === VisibilityState.VisibleBlurred) game?.pause();
