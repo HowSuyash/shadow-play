@@ -35,7 +35,7 @@ export interface ArenaCtx {
   strike(from: Vector3, dmg: number): boolean;
   /** Boss only: bring in reinforcements. */
   summon(kind: MonsterKind, count: number): void;
-  sound(kind: 'screech' | 'growl' | 'stomp' | 'cast' | 'slam' | 'roar' | 'whoosh'): void;
+  sound(kind: 'screech' | 'growl' | 'stomp' | 'cast' | 'slam' | 'roar' | 'whoosh', from?: Vector3): void;
 }
 
 /** A hittable sphere. Normal monsters have one; the boss has three cores. */
@@ -364,7 +364,7 @@ export class Imp extends Monster {
       case 'emerge':
         if (this.emerge >= 1) {
           this.setState('advance');
-          ctx.sound('screech');
+          ctx.sound('screech', this.root.position);
         }
         break;
       case 'advance':
@@ -520,10 +520,10 @@ export class Wraith extends Monster {
         if (this.casts >= 2) {
           this.casts = 0;
           this.setState('swoop');
-          ctx.sound('screech');
+          ctx.sound('screech', this.root.position);
         } else {
           this.setState('cast');
-          ctx.sound('cast');
+          ctx.sound('cast', this.root.position);
         }
       }
     } else if (this.state === 'swoop') {
@@ -705,7 +705,7 @@ export class Brute extends Monster {
       case 'emerge':
         if (this.emerge >= 1) {
           this.setState('advance');
-          ctx.sound('growl');
+          ctx.sound('growl', this.root.position);
         }
         break;
       case 'advance':
@@ -720,7 +720,7 @@ export class Brute extends Monster {
         const k = Math.min(1, this.stateT / 0.16);
         raise = 1 - k * 1.3;
         if (this.stateT >= 0.16 && this.stateT - dt < 0.16) {
-          ctx.sound('slam');
+          ctx.sound('slam', this.root.position);
           tmp.copy(this.core.center);
           if (ctx.strike(tmp, 2)) {
             this.setState('stagger');
@@ -745,7 +745,7 @@ export class Brute extends Monster {
     const after = Math.sin(this.phase);
     if (walk > 0 && Math.sign(before) !== Math.sign(after)) {
       this.stepSide++;
-      ctx.sound('stomp');
+      ctx.sound('stomp', this.root.position);
     }
     const swing = after * 0.45 * walk;
     this.legL.rotation.x = swing;
@@ -884,7 +884,7 @@ export class ShadowEater extends Monster {
     switch (this.state) {
       case 'emerge':
         if (this.emerge >= 1) {
-          ctx.sound('roar');
+          ctx.sound('roar', this.root.position);
           this.setState('idle');
         }
         break;
@@ -898,15 +898,15 @@ export class ShadowEater extends Monster {
           if (now === 'slam') {
             // Prefer a hand whose core is still alive.
             this.slamArm = this.hands[this.next % 2].alive ? this.next % 2 : 1 - (this.next % 2);
-            ctx.sound('roar');
+            ctx.sound('roar', this.root.position);
           }
           if (now === 'volley') {
             this.volleyLeft = 2 + rage;
             this.volleyT = 0.6;
-            ctx.sound('cast');
+            ctx.sound('cast', this.root.position);
           }
           if (now === 'summon') {
-            ctx.sound('roar');
+            ctx.sound('roar', this.root.position);
             ctx.summon('imp', 2);
           }
         }
@@ -986,7 +986,7 @@ export class ShadowEater extends Monster {
       return;
     }
     if (T >= 1.6 && T - dt < 1.6) {
-      ctx.sound('slam');
+      ctx.sound('slam', this.root.position);
       ctx.sparks.burst(this.slamAt, 40, 2.5, 0x8c5cff, 0.8, 4);
       ctx.strike(tmp2.copy(this.slamAt).setY(0.9), 1);
     }

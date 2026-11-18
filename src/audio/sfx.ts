@@ -47,7 +47,7 @@ export class Sfx {
     gain.gain.exponentialRampToValueAtTime(0.0001, t + attack + release);
   }
 
-  private tone(freq: number, t: number, dur: number, type: OscillatorType, peak: number, dest: AudioNode = this.master): void {
+  private tone(freq: number, t: number, dur: number, type: OscillatorType, peak: number, dest: AudioNode = this.dst): void {
     const ctx = this.ctx!;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -69,7 +69,7 @@ export class Sfx {
     f.Q.value = q;
     const g = ctx.createGain();
     this.env(g, t, peak, attack, dur);
-    src.connect(f).connect(g).connect(this.master);
+    src.connect(f).connect(g).connect(this.dst);
     src.start(t, Math.random() * 0.5);
     src.stop(t + attack + dur + 0.05);
     return f;
@@ -611,6 +611,28 @@ export class Sfx {
   // -------------------------------------------------------------------------
   // Battle sounds
 
+  /** Where one-shot sounds go: the master bus, or a stereo panner while `at()` runs. */
+  private panNode: StereoPannerNode | undefined;
+  private get dst(): AudioNode {
+    return this.panNode ?? this.master;
+  }
+
+  /** Play the sounds made inside `fn` from a direction: -1 hard left … 1 hard right. */
+  at(pan: number, fn: () => void): void {
+    if (!this.ctx) return;
+    const p = this.ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(this.master);
+    this.panNode = p;
+    try {
+      fn();
+    } finally {
+      this.panNode = undefined;
+    }
+    // Let the panner be collected once its sounds have finished.
+    setTimeout(() => p.disconnect(), 3000);
+  }
+
   setBattle(level: 0 | 1 | 2): void {
     this.battle = level;
   }
@@ -665,7 +687,7 @@ export class Sfx {
     o.frequency.setValueAtTime(600, t);
     o.frequency.exponentialRampToValueAtTime(1500, t + 0.25);
     this.env(g, t, 0.07, 0.01, 0.25);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.dst);
     o.start(t);
     o.stop(t + 0.3);
   }
@@ -695,7 +717,7 @@ export class Sfx {
     bp.Q.value = 4;
     const g = ctx.createGain();
     this.env(g, t, 0.08, 0.03, 0.4);
-    o.connect(bp).connect(g).connect(this.master);
+    o.connect(bp).connect(g).connect(this.dst);
     o.start(t);
     o.stop(t + 0.5);
   }
@@ -714,7 +736,7 @@ export class Sfx {
     lp.frequency.value = 500;
     const g = ctx.createGain();
     this.env(g, t, 0.22, 0.08, 0.8);
-    o.connect(lp).connect(g).connect(this.master);
+    o.connect(lp).connect(g).connect(this.dst);
     o.start(t);
     o.stop(t + 1);
     this.noise(t, 0.7, 'bandpass', 400, 2, 0.12, 0.08);
@@ -737,7 +759,7 @@ export class Sfx {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.09, t + 0.8);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 1);
-    g.connect(this.master);
+    g.connect(this.dst);
     for (const detune of [1, 1.015]) {
       const o = ctx.createOscillator();
       o.type = 'sine';
@@ -810,7 +832,7 @@ export class Sfx {
       g.gain.exponentialRampToValueAtTime(0.12, t + d + 0.2);
       g.gain.setValueAtTime(0.12, t + d + 1.0);
       g.gain.exponentialRampToValueAtTime(0.0001, t + d + 1.6);
-      o.connect(lp).connect(g).connect(this.master);
+      o.connect(lp).connect(g).connect(this.dst);
       o.start(t + d);
       o.stop(t + d + 1.7);
     }

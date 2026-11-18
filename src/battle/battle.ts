@@ -16,6 +16,8 @@ import {
   type Sprite,
 } from '@iwsdk/core';
 import { sfx } from '../audio/sfx.js';
+import type { Silhouette } from '../game/creatures.js';
+import { makeCreature } from '../game/levels.js';
 import type { PoseDetector, PoseId, PoseResult } from '../hands/poseDetector.js';
 import type { WorldId } from '../scene/worlds.js';
 import { Fader, makeText, pictogramTexture, POSE_CAPTIONS } from '../ui/wallUI.js';
@@ -216,6 +218,8 @@ export class Battle implements ArenaCtx {
   /** Holding-a-shape ring around the hand. */
   private readonly charge: Mesh;
   private readonly chargeMat: MeshBasicMaterial;
+  /** Shadow creatures condensing into weapons in your hands. */
+  private condensing: { s: Silhouette; t: number; hand: 'left' | 'right' }[] = [];
   /** Weapon-forming silhouette ghost in the hand. */
   private readonly ghost: Mesh;
 
@@ -555,6 +559,14 @@ export class Battle implements ArenaCtx {
     if (w instanceof Whip) w.attach(this.root);
     const rig = this.rigs[hand];
     const color = WEAPON_INFO[id].color;
+    // The creature's shadow appears at your hand and spins down into the weapon.
+    const ghost = makeCreature(p);
+    const backlight = halo(0xffc46a, 0.9, 0.75);
+    backlight.position.set(0, 0.15, -0.02);
+    ghost.root.add(backlight);
+    ghost.root.position.copy(rig.pos);
+    this.root.add(ghost.root);
+    this.condensing.push({ s: ghost, t: 0, hand });
     this.sparks.burst(rig.pos, 60, 1.6, color, 0.7, 0.5);
     this.sparks.burst(rig.pos, 30, 0.8, 0x9a5cff, 0.6, 0.2);
     sfx.summonWeapon();
@@ -610,6 +622,22 @@ export class Battle implements ArenaCtx {
         }
       }
     }
+    // Shadows condensing into weapons.
+    for (const c of this.condensing) {
+      c.t += dt;
+      const k = Math.min(1, c.t / 0.6);
+      const rig = this.rigs[c.hand];
+      c.s.root.position.copy(rig.pos).y += 0.25 * (1 - k);
+      c.s.root.lookAt(this.head);
+      c.s.root.rotateY(k * Math.PI * 3);
+      const sc = 0.75 * (1 - k * k);
+      c.s.root.scale.set(sc, sc, sc);
+      c.s.update(dt, t);
+      c.s.root.scale.set(sc, sc, sc);
+      if (k < 1 && Math.random() < 0.7) this.sparks.gather(rig.pos, 0.2, 2, 0xffc46a);
+    }
+    for (const c of this.condensing) if (c.t >= 0.6) c.s.root.removeFromParent();
+    this.condensing = this.condensing.filter((c) => c.t < 0.6);
     // Label above a freshly made weapon.
     if (this.weaponLabel) {
       this.weaponLabelT -= dt;
@@ -661,7 +689,7 @@ export class Battle implements ArenaCtx {
     const r = new Rift(at, this.head, size);
     this.rifts.push(r);
     this.root.add(r.root);
-    sfx.riftOpen();
+    this.panned(at, () => sfx.riftOpen());
   }
 
   /** Keep monsters from standing inside each other. */
@@ -722,14 +750,28 @@ export class Battle implements ArenaCtx {
     this.spawnT = 0;
   }
 
-  sound(kind: 'screech' | 'growl' | 'stomp' | 'cast' | 'slam' | 'roar' | 'whoosh'): void {
-    if (kind === 'screech') sfx.screech();
-    else if (kind === 'growl') sfx.growl();
-    else if (kind === 'stomp') sfx.stomp();
-    else if (kind === 'cast') sfx.castOrb();
-    else if (kind === 'slam') sfx.slam();
-    else if (kind === 'roar') sfx.roar();
-    else sfx.swoosh(0.5);
+  sound(kind: 'screech' | 'growl' | 'stomp' | 'cast' | 'slam' | 'roar' | 'whoosh', from?: Vector3): void {
+    this.panned(from, () => {
+      if (kind === 'screech') sfx.screech();
+      else if (kind === 'growl') sfx.growl();
+      else if (kind === 'stomp') sfx.stomp();
+      else if (kind === 'cast') sfx.castOrb();
+      else if (kind === 'slam') sfx.slam();
+      else if (kind === 'roar') sfx.roar();
+      else sfx.swoosh(0.5);
+    });
+  }
+
+  /** Sounds come from where things happen: pan by direction relative to your gaze. */
+  private panned(from: Vector3 | undefined, fn: () => void): void {
+    if (!from) return fn();
+    const dx = from.x - this.head.x;
+    const dz = from.z - this.head.z;
+    const len = Math.hypot(dx, dz) || 1;
+    // Right vector of the gaze (yaw only): (-dir.z, dir.x).
+    const rl = Math.hypot(this.headDir.x, this.headDir.z) || 1;
+    const pan = (dx * (-this.headDir.z / rl) + dz * (this.headDir.x / rl)) / len;
+    sfx.at(pan * 0.85, fn);
   }
 
   private hurt(dmg: number): void {
@@ -953,7 +995,7 @@ export class Battle implements ArenaCtx {
     if (w) w.glow = 0.2;
     this.sparks.burst(tg.center, 26 + dmg * 10, 1.4 + dmg * 0.3, color, 0.5, 1.5, dir, 0.9);
     this.sparks.burst(tg.center, 10, 0.8, 0x6a2cff, 0.6, 0.5);
-    sfx.impact(dmg >= 2);
+    this.panned(tg.center, () => sfx.impact(dmg >= 2));
     this.score += Math.round(10 * dmg);
     if (!tg.alive && m.alive) {
       // A boss core shattered, but the boss fights on.
@@ -964,7 +1006,7 @@ export class Battle implements ArenaCtx {
     }
     if (killed) {
       this.slowmo = m.kind === 'boss' ? 1.2 : 0.12;
-      sfx.monsterDie(m.kind === 'boss' || m.kind === 'brute');
+      this.panned(tg.center, () => sfx.monsterDie(m.kind === 'boss' || m.kind === 'brute'));
       this.sparks.burst(tg.center, m.kind === 'boss' ? 300 : 70, m.kind === 'boss' ? 5 : 2.2, 0x9a5cff, 1, 1);
       this.sparks.burst(tg.center, m.kind === 'boss' ? 200 : 40, m.kind === 'boss' ? 4 : 1.8, 0xffc46a, 0.9, 1);
       if (m.kind === 'boss') {

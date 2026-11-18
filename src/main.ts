@@ -46,6 +46,8 @@ const PROLOGUE: string[][] = [
   ['Every shadow you make can leave the wall', 'and become a weapon in your hands.'],
 ];
 const PROLOGUE_CARD = 4.6;
+/** Height of the shadow wall's centre (see Room). */
+const WALL_CENTER_Y = 2.0;
 
 /**
  * Game state machine: TITLE (main menu) → LEVEL I..V → END, plus GALLERY and
@@ -1038,7 +1040,7 @@ class Game {
       if (this.solvedTimer > SOLVED_LINGER + 0.6) {
         const next = this.levelIndex + 1;
         // Solo: the chapter's monsters attack before you move on. (Co-op keeps the shadow story.)
-        if (!this.coop && BATTLES[this.levelIndex]) this.runCurtain(() => this.enterBattle(this.levelIndex));
+        if (!this.coop?.connected && BATTLES[this.levelIndex]) this.runCurtain(() => this.enterBattle(this.levelIndex));
         else this.runCurtain(() => (next < this.levels.length ? this.showMap(next) : this.enterEnd()));
       }
     }
@@ -1208,8 +1210,8 @@ class Game {
     this.battleIndex = i;
     const def = BATTLES[i];
     this.applyWorld(def.world);
-    this.room.wallMesh.visible = false;
-    this.wall.visible = false;
+    // The shadow wall sinks into the ground and the battlefield opens up.
+    this.wallSinkT = 0;
     const giant = this.worlds.root.getObjectByName('shadow-eater-giant');
     if (giant) giant.visible = !def.boss;
     // Desktop: sit in the player's seat (the room camera normally frames the wall).
@@ -1231,6 +1233,9 @@ class Game {
     this.battleKills += this.battle.kills;
     this.battleScore += this.battle.score;
     this.battle.stop();
+    this.wallSinkT = -1;
+    this.room.wallMesh.position.y = WALL_CENTER_Y;
+    this.wall.position.y = 0;
     this.room.wallMesh.visible = true;
     this.wall.visible = true;
     const giant = this.worlds.root.getObjectByName('shadow-eater-giant');
@@ -1245,8 +1250,29 @@ class Game {
     sfx.setChime(0);
   }
 
+  /** Seconds into the wall's descent (-1 when not sinking). */
+  private wallSinkT = -1;
+
+  private updateWallSink(dt: number): void {
+    if (this.wallSinkT < 0) return;
+    const before = this.wallSinkT;
+    this.wallSinkT += dt;
+    // Wait for the fade to lift, then grind down into the floor.
+    const k = Math.min(1, Math.max(0, (this.wallSinkT - 0.7) / 2.2));
+    if (before < 0.7 && this.wallSinkT >= 0.7) sfx.rumble(2.2);
+    const e = k * k * (3 - 2 * k);
+    this.room.wallMesh.position.y = WALL_CENTER_Y - e * 4.6;
+    this.wall.position.y = -e * 4.6;
+    if (k >= 1) {
+      this.room.wallMesh.visible = false;
+      this.wall.visible = false;
+      this.wallSinkT = -1;
+    }
+  }
+
   private updateBattle(dt: number, time: number, pose: PoseResult, pauseFired: boolean): void {
     this.runTime += dt;
+    if (!this.paused) this.updateWallSink(dt);
     if (pauseFired || this.debugKey('KeyP')) {
       this.request({ t: 'pause' });
       return;
