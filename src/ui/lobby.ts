@@ -24,7 +24,10 @@ export class Lobby {
       for (const p of ['lobby-main', 'lobby-coop', 'lobby-host', 'lobby-join']) $(p).hidden = p !== id;
     };
 
-    $('play-solo').onclick = () => h.onEnter();
+    $('play-solo').onclick = () => {
+      this.setStatus('Starting VR…');
+      h.onEnter();
+    };
     $('play-coop').onclick = () => show('lobby-coop');
     $('coop-back').onclick = () => show('lobby-main');
 
@@ -98,5 +101,15 @@ export class Lobby {
     play.onclick = onPlayHere;
     (document.getElementById('play-coop') as HTMLElement).hidden = true;
     this.setStatus('Open this page in the Meta Quest Browser to play with your hands.');
+  }
+
+  /** VR didn't start: say so, keep Play for a retry, and offer the on-screen game. */
+  showScreenFallback(onPlayHere: () => void, reason: string): void {
+    for (const p of ['lobby-coop', 'lobby-host', 'lobby-join']) (document.getElementById(p) as HTMLElement).hidden = true;
+    (document.getElementById('lobby-main') as HTMLElement).hidden = false;
+    const screen = document.getElementById('play-screen') as HTMLButtonElement;
+    screen.hidden = false;
+    screen.onclick = onPlayHere;
+    this.setStatus(reason);
   }
 }

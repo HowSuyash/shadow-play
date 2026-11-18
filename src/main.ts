@@ -906,28 +906,48 @@ class ShadowPlaySystem extends createSystem({}) {
 /** The 2D landing page: solo, or host/join an online co-op room. */
 function setupLobby(world: World, g: Game): void {
   if (!world.xrEnabled) return;
+  const keysHelp = document.getElementById('keys-help') as HTMLElement | null;
+  /** Play on the flat screen (keyboard demo) — for computers without a headset. */
+  const playOnScreen = () => {
+    sfx.unlock();
+    lobby.setVisible(false);
+    const note = document.getElementById('boot-note');
+    if (note) note.hidden = true;
+    if (keysHelp) keysHelp.hidden = false;
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+  let vrCheck: ReturnType<typeof setTimeout> | undefined;
   const lobby = new Lobby({
     onCoop: (role, code) => g.startCoop(role, code),
     onEnter: () => {
       sfx.unlock();
+      if (!navigator.xr) {
+        lobby.showScreenFallback(playOnScreen, 'This browser has no VR. Open the page in the Meta Quest Browser, or play on screen.');
+        return;
+      }
       world.launchXR();
+      // launchXR only logs failures, so check that VR actually started.
+      clearTimeout(vrCheck);
+      vrCheck = setTimeout(() => {
+        if (!world.session) {
+          lobby.showScreenFallback(
+            playOnScreen,
+            "VR didn't start. On a Quest: put the controllers down, then tap Play again. On a computer: play on screen.",
+          );
+        }
+      }, 3000);
     },
   });
   g.onStatus = (text) => lobby.setStatus(text);
   lobby.setVisible(true);
   // A computer without a headset: offer the keyboard demo instead of a dead button.
-  const keysHelp = document.getElementById('keys-help') as HTMLElement | null;
-  void navigator.xr?.isSessionSupported('immersive-vr').then((vr) => {
-    if (vr) return;
-    lobby.setDesktopMode(() => {
-      sfx.unlock();
-      lobby.setVisible(false);
-      const note = document.getElementById('boot-note');
-      if (note) note.hidden = true;
-      if (keysHelp) keysHelp.hidden = false;
-      (document.activeElement as HTMLElement | null)?.blur();
-    });
-  });
+  void navigator.xr
+    ?.isSessionSupported('immersive-vr')
+    .then((vr) => {
+      if (!vr) lobby.setDesktopMode(playOnScreen);
+    })
+    .catch(() => lobby.setDesktopMode(playOnScreen));
+  if (!navigator.xr) lobby.setDesktopMode(playOnScreen);
   world.visibilityState.subscribe((state) => {
     lobby.setVisible(state === VisibilityState.NonImmersive);
     if (state !== VisibilityState.NonImmersive) sfx.unlock();
