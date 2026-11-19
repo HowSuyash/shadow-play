@@ -19,11 +19,11 @@ When you enter VR you're not looking at a screen: you're **inside** a 360° proc
 
 | World | Where | What surrounds you |
 |---|---|---|
-| **Shadow Theatre** | menus, Chapter II | An ancient **Indian shadow-puppetry temple**: carved sandstone pillars with brass bands, a tiered **gopuram** tower crowning the shadow wall, tall **kuthuvilakku** lamps, floating brass **diyas**, a marigold **toran**, glowing translucent **Tholu Bommalata**-style leather puppets, a golden rangoli floor, a warm keyhole doorway, and a tanpura-like drone |
-| **Sky Kingdom** | Chapter I, the ending | You sit on a floating island above a sunset sea of clouds: other islands, a sky palace, waterfalls, a lantern-lit bridge, a pale moon, wind |
-| **Forgotten Forest** | Chapter III | Giant trees and roots, glowing mushrooms, cyan fireflies that drift toward your hands, a tunnel into the hill, crickets |
-| **Dark Castle** | Chapter IV | Gothic pillars and arches, sealed giant doors behind you, violet torches, glowing trap glyphs, banners, mist |
-| **Shadow Realm** | Chapter V | Colossal ruined pillars, orbiting rocks, violet energy rings, an icy moon, a cracked glowing floor, and the Shadow Eater looming over the wall |
+| **Shadow Theatre** | menus, Chapter II | An ancient **Indian shadow-puppetry temple** (a Dravidian *mandapa*). The shadow wall is a hand-sewn **cloth screen** in a carved stone proscenium with a cusped **torana** arch, brass bells and marigold **toran** garlands. Around it: rows of bracket-capital pillars, hanging brass lamps, tall **kuthuvilakku** lamps, floating **diyas**, backlit **Tholu Bommalata** leather puppets glowing in the aisles, and a golden rangoli floor. Behind you, a candlelit stair rises to a moonlit **keyhole arch**. When the screen sinks for battle, it reveals a moonlit courtyard of lamp posts and colonnades before a towering **gopuram** |
+| **Sky Kingdom** | Chapter I, the ending | You sit on a marble terrace with a balustrade, on a floating island at golden hour, above a sea of clouds. Around you: white-and-gold palaces with teal spires on their own islands, waterfalls pouring into the clouds, arched bridges and a rope bridge, blossom trees, drifting crystals, a ringed planet and a crescent moon. The wall is a marble gateway, and beyond it a meadow island where battles are fought |
+| **Forgotten Forest** | Chapter III | A bioluminescent night wood: colossal trees with flared root buttresses vanishing into a dark canopy, pink mushrooms glowing from their gills, ferns, cyan glow-bulbs, clouds of fireflies that swarm toward your hands, blue mist, moonbeams, and a tunnel breathing blue light. The wall is a moss-grown stone tablet gripped by roots |
+| **Dark Castle** | Chapter IV | A gothic cathedral-keep: clustered piers, pointed arcades, a ribbed vault lost in violet haze, **stained-glass** lancets, a **rose window** over the great sealed doors behind you, iron chandeliers, banners and smouldering trap runes. Beyond the screen lies the nave's apse with an empty throne under a tall glowing window |
+| **Shadow Realm** | Chapter V | A ruined colonnade of fluted columns, many broken, on cracked flagstones under a **colossal cratered planet**. Shattered rock drifts in orbit, violet corruption seeps from floor cracks, lightning strikes the horizon, and the Shadow Eater looms beyond the wall |
 
 Art direction: warm gold for magic, deep navy for darkness, violet for the Shadow Eater's corruption. Each world reacts when a creature comes alive (lamps flare, mushrooms pulse, runes blaze, the Shadow Eater's eyes burn). Moving between worlds uses a comfortable head-locked fade to black and a portal burst on the wall, with no forced camera movement.
 
@@ -176,7 +176,12 @@ Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub 
 
 ## Art, audio and performance
 
-- **Worlds:** [src/scene/worlds.ts](src/scene/worlds.ts) builds each world lazily the first time it's visited. Repeated scenery (pillars, trees, mushrooms, islands, rocks, lamps) is instanced. Scenery uses **baked emissive light** rather than extra real-time lights, so the hand shadows on the wall keep their contrast. Each world costs 18–28 draw calls and holds 60 fps (the display cap) on an integrated laptop GPU.
+- **Worlds:** [src/scene/worlds.ts](src/scene/worlds.ts) builds each world in [src/scene/envs/](src/scene/envs/) lazily the first time it's visited. Everything is generated in code, with no downloads:
+  - **Textures** are painted on canvas: fBm-noise masonry with bevelled blocks, bark, marble, stained glass, leather puppets, and an equirectangular sky per world.
+  - **Draw calls:** static scenery is merged per material, so a world costs 41–74 draw calls.
+  - **Lighting is baked into vertex colours** when a world is built: candle pools, moonlight, mushroom glow and floor occlusion ([kit.ts](src/scene/envs/kit.ts)). The scenery needs no real-time lights, and the hand shadows on the wall keep their contrast.
+  - **The wall:** each world gives the shadow wall its own surface (cloth screen, mossy tablet, ashlar, marble, rune-carved stone).
+  - **Performance:** every world holds 60 fps (the display cap) on an integrated laptop GPU.
 
 - **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
 - **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.

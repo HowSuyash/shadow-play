@@ -21,7 +21,7 @@ _Last updated: 19 Nov 2026. The battle update lives on the `battle` branch; `mai
 | Lobby: six-character codes, Copy invite link, player slots | ✅ | Two-browser test joins via the `?room=` link; screenshot |
 | Settings (sound, effects; saved) and Credits | ✅ | Emulator: pinch Settings → Sound cycles and persists |
 | Shadow Dragon (legendary unlock: finale + gallery) | ✅ | Full headless playthrough to the ending |
-| Five 360° 3D worlds (Indian shadow-puppetry temple, Sky Kingdom, Forest, Castle, Shadow Realm), per-chapter, with reactions, fade transitions and per-world audio | ✅ | Headless GPU screenshots from three directions per world (60 fps, 18–28 draw calls); emulator in XR (temple around the player, hand shadow intact); full playthrough across all worlds |
+| Five 360° 3D worlds rebuilt after the art-direction reference board (Dravidian temple theatre with gopuram courtyard, bioluminescent forest, gothic castle, sky kingdom of floating palaces, ruined realm under a giant planet), with baked vertex lighting, painted skies and a wall surface per world | ✅ | Headless GPU screenshots from five directions per world, including the arena revealed when the wall sinks (60 fps, 41–74 draw calls); every battle played in its new world (60 fps); emulator in XR with injected hands (spirit hands and their shadows on the cloth screen) |
 | Progress, stars, achievements | ✅ | Unit tests; gallery shows them |
 | Transformation particles, dust, partner glow avatar | ✅ | Screenshots; 60 fps (display cap) on an integrated AMD GPU at 1000×620 |
 | Deploy: GitHub Pages via Actions (typecheck → tests → build), Vercel config | ✅ | Live at https://howsuyash.github.io/shadow-play/ |
@@ -46,7 +46,7 @@ _Last updated: 19 Nov 2026. The battle update lives on the `battle` branch; `mai
 - **No separate lobby "ready" step:** in co-op the game starts when either player chooses Story or Duel.
 - **Settings covers sound and effects only.** Recenter is in the pause menu.
 - **Gesture calibration is via tunable thresholds** (`POSE_CONFIG`), not an in-game calibration flow.
-- **Worlds are procedural geometry, not detailed authored 3D art.** There are no external models or textures, so the look is stylised, not "Unreal-quality". There's no spatial (positional) audio yet: the ambience is stereo. The other player sees your glowing hands, not a full body avatar.
+- **Worlds are procedural geometry and painted canvas textures, not authored 3D art.** There are no external models or textures, so the look is stylised, not "Unreal-quality". World building runs during the fade between worlds (about 0.3–0.6 s on a laptop, likely longer on Quest). There's no spatial (positional) audio yet: the ambience is stereo. The other player sees your glowing hands, not a full body avatar.
 
 ## Test results
 

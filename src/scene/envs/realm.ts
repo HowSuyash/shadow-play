@@ -386,7 +386,7 @@ export function realm(): WorldSet {
   const sv = new Vector3();
   return {
     root,
-    look: { wallTint: 0xdcdcee, wallMap, hemiSky: 0x4a6aa0, hemiGround: 0x0a0614, hemiIntensity: 0.7, fog: new FogExp2(0x0a1424, 0.022) },
+    look: { wallTint: 0xe4e4f4, wallMap, hemiSky: 0x8aa2d8, hemiGround: 0x141028, hemiIntensity: 0.8, fog: new FogExp2(0x0a1424, 0.022) },
     envLights: [[PLANET.x * 0.3, PLANET.y * 0.3, PLANET.z * 0.3, 0x7ab8ff, 8], [0, 9, -2, 0x9a5cff, 3]],
     react: () => (rage = 1),
     update(dt, t) {
