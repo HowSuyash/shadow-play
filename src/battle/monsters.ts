@@ -18,6 +18,7 @@ import {
   Vector3,
   type Sprite,
 } from '@iwsdk/core';
+import { boneTexture, claw, clothTexture, ironTextures, limb, profile, robe, skinTextures, skullGeo, Wisps } from './creatureKit.js';
 import { glowMat, halo, mergeStatic, rimMaterial, type Sparks } from './fx.js';
 
 export type MonsterKind = 'imp' | 'wraith' | 'brute' | 'boss';
@@ -125,6 +126,45 @@ export abstract class Monster {
     return m;
   }
 
+  /** Shadow flesh: leathery near-black with glowing corruption veins. */
+  protected skinMat(veins = 1): RimMat {
+    const t = skinTextures();
+    const m = rimMaterial({ color: 0xffffff, map: t.map, emissive: 0xffffff, emissiveMap: t.emissive, emissiveIntensity: 0.7 * veins, roughness: 0.78, metalness: 0.05 }, 0x3a2a6a, 3);
+    this.mats.push(m);
+    return m;
+  }
+
+  /** Blackened, scarred iron with molten cracks. */
+  protected ironMat(): RimMat {
+    const t = ironTextures();
+    const m = rimMaterial({ color: 0xffffff, map: t.map, emissive: 0xffffff, emissiveMap: t.emissive, emissiveIntensity: 0.9, roughness: 0.42, metalness: 0.75 }, 0x4a4a8a, 3.2);
+    this.mats.push(m);
+    return m;
+  }
+
+  /** Old bone and horn. */
+  protected boneMat(tint = 0xffffff): RimMat {
+    const m = rimMaterial({ color: tint, map: boneTexture(), roughness: 0.7, metalness: 0.05, emissive: 0x0a0610, emissiveIntensity: 1 }, 0x3a2c5a, 3);
+    this.mats.push(m);
+    return m;
+  }
+
+  /** Tattered black cloth (torn hem, holes). */
+  protected clothMat(): RimMat {
+    const m = rimMaterial({ color: 0xffffff, map: clothTexture(), alphaTest: 0.5, side: DoubleSide, roughness: 0.95, metalness: 0, emissive: 0x06030c, emissiveIntensity: 1 }, 0x3a2c6a, 2.4);
+    this.mats.push(m);
+    return m;
+  }
+
+  /** Smoke or embers drifting off the body (model space). */
+  protected wisps(...args: ConstructorParameters<typeof Wisps>): Wisps {
+    const w = new Wisps(...args);
+    this.smoke.push(w);
+    this.model.add(w.points);
+    return w;
+  }
+  private readonly smoke: Wisps[] = [];
+
   get alive(): boolean {
     return !this.dying && !this.dead;
   }
@@ -166,6 +206,7 @@ export abstract class Monster {
   }
 
   update(dt: number, t: number, ctx: ArenaCtx): void {
+    for (const w of this.smoke) w.update(dt);
     for (const tg of this.targets) tg.cooldown = Math.max(0, tg.cooldown - dt);
     this.flash = Math.max(0, this.flash - dt * 5);
     for (const m of this.mats) m.flash.value = this.flash * 1.6;
@@ -235,7 +276,7 @@ export abstract class Monster {
     this.root.removeFromParent();
     this.root.traverse((o) => {
       const m = o as Mesh;
-      if (m.isMesh) {
+      if (m.geometry) {
         m.geometry.dispose();
         (m.material as MeshBasicMaterial).dispose?.();
       }
@@ -265,48 +306,84 @@ export class Imp extends Monster {
 
   constructor() {
     super();
-    const skin = this.rim(0x150b26, 0x12051f, 0x9a5cff);
-    const dark = this.rim(0x0a0612, 0x080210, 0x7a3cff);
-    // Torso, hunched forward.
+    const skin = this.skinMat(0.7);
+    const bone = this.boneMat(0xb8aca0);
+    const darkBone = this.boneMat(0x6a5e58);
+    // Gaunt, hunched torso with ribs pushing through the skin.
     this.body = pivotAt(0, 0.5, 0);
-    const torso = new Mesh(new SphereGeometry(0.17, 14, 10), skin);
-    torso.scale.set(1, 1.15, 0.85);
-    torso.position.set(0, 0.16, 0.02);
-    const belly = new Mesh(new TorusGeometry(0.06, 0.012, 6, 16), this.glow(0xc06bff));
-    belly.position.set(0, 0.12, 0.15);
-    this.head = pivotAt(0, 0.38, 0.08);
-    const skull = new Mesh(new SphereGeometry(0.11, 14, 10), skin);
-    skull.scale.set(1, 0.9, 1.1);
-    const jaw = new Mesh(new BoxGeometry(0.13, 0.03, 0.08), dark);
-    jaw.position.set(0, -0.06, 0.06);
-    const mouth = new Mesh(new BoxGeometry(0.09, 0.012, 0.01), this.glow(0xff6ad5));
-    mouth.position.set(0, -0.035, 0.105);
-    this.head.add(skull, jaw, mouth);
+    const pelvis = new Mesh(new SphereGeometry(0.085, 12, 8), skin);
+    pelvis.scale.set(1.15, 0.7, 0.9);
+    const torso = new Mesh(profile([0.0, 0, 0.07, 0.02, 0.08, 0.1, 0.115, 0.2, 0.145, 0.29, 0.13, 0.37, 0.07, 0.43, 0.0, 0.45]), skin);
+    torso.scale.z = 0.78;
+    this.body.add(pelvis, torso);
+    for (let k = 0; k < 4; k++) {
+      const r = [0.118, 0.135, 0.148, 0.142][k];
+      const rib = new Mesh(new TorusGeometry(r * 0.99, 0.006, 4, 14, Math.PI), darkBone);
+      rib.rotation.x = Math.PI / 2;
+      rib.scale.set(1, 0.8, 1);
+      rib.position.y = 0.19 + k * 0.05;
+      this.body.add(rib);
+    }
+    // A ridge of spines down the back.
+    for (let k = 0; k < 6; k++) {
+      const sp = new Mesh(claw(0.05 + k * 0.012, 0.012, -0.5), darkBone);
+      sp.position.set(0, 0.12 + k * 0.055, -0.1);
+      sp.rotation.x = -1.1;
+      this.body.add(sp);
+    }
+    // Long skull, open fanged jaw, slit eyes, swept-back horns.
+    this.head = pivotAt(0, 0.42, 0.06);
+    const skull = new Mesh(skullGeo(), skin);
+    skull.scale.set(0.072, 0.066, 0.075);
+    skull.position.z = 0.02;
+    const jaw = pivotAt(0, -0.035, 0.02);
+    jaw.rotation.x = 0.42;
+    const jawM = new Mesh(new BoxGeometry(0.075, 0.018, 0.1), skin);
+    jawM.position.set(0, -0.006, 0.045);
+    jaw.add(jawM);
+    for (let k = 0; k < 5; k++) {
+      const x = -0.028 + k * 0.014;
+      const up = new Mesh(claw(0.028, 0.004, 0.2), bone);
+      up.position.set(x, -0.025, 0.085 - Math.abs(x) * 0.6);
+      up.rotation.z = Math.PI;
+      const lo = new Mesh(claw(0.022, 0.004, -0.2), bone);
+      lo.position.set(x, 0.003, 0.085 - Math.abs(x) * 0.6);
+      jaw.add(lo);
+      this.head.add(up);
+    }
+    const throat = new Mesh(new SphereGeometry(0.02, 8, 6), this.glow(0xff3a9a));
+    throat.position.set(0, -0.03, 0.05);
+    this.head.add(skull, jaw, throat);
     for (const s of [-1, 1]) {
-      const horn = new Mesh(new ConeGeometry(0.025, 0.14, 6), dark);
-      horn.position.set(s * 0.07, 0.09, -0.02);
-      horn.rotation.set(-0.5, 0, -s * 0.5);
-      const eye = new Mesh(new SphereGeometry(0.018, 8, 6), this.glow(0xf0a0ff));
-      eye.position.set(s * 0.045, 0.01, 0.095);
-      const glow = halo(0xc35cff, 0.12, 0.9);
+      const horn = new Mesh(claw(0.17, 0.02, -1.5), darkBone);
+      horn.position.set(s * 0.045, 0.045, -0.01);
+      horn.rotation.set(-0.5, 0, -s * 0.35);
+      const eye = new Mesh(new SphereGeometry(1, 8, 6), this.glow(0xffd6ff));
+      eye.scale.set(0.02, 0.0055, 0.008);
+      eye.rotation.z = s * 0.38;
+      eye.position.set(s * 0.033, 0.022, 0.1);
+      const glow = halo(0xc040ff, 0.09, 0.85);
       glow.position.copy(eye.position);
       this.eyes.push(glow);
       this.head.add(horn, eye, glow);
     }
-    this.body.add(torso, belly, this.head);
-    // Long arms with claws.
+    this.body.add(this.head);
+    // Long arms ending in curved talons.
     const arm = (s: number) => {
-      const shoulder = pivotAt(s * 0.17, 0.25, 0.03);
-      const upper = cyl(0.035, 0.028, 0.24, skin);
-      const elbow = pivotAt(0, -0.24, 0);
+      const shoulder = pivotAt(s * 0.15, 0.34, 0.02);
+      const upper = new Mesh(limb(0.034, 0.024, 0.26), skin);
+      const elbow = pivotAt(0, -0.26, 0);
       elbow.rotation.x = -0.6;
-      const fore = cyl(0.028, 0.02, 0.22, skin);
-      const hand = pivotAt(0, -0.22, 0);
-      for (let c = -1; c <= 1; c++) {
-        const claw = new Mesh(new ConeGeometry(0.009, 0.08, 5), this.glow(0xe6c8ff));
-        claw.position.set(c * 0.016, -0.04, 0.01);
-        claw.rotation.x = Math.PI + 0.3;
-        hand.add(claw);
+      const fore = new Mesh(limb(0.026, 0.017, 0.26, 0.25), skin);
+      const hand = pivotAt(0, -0.26, 0);
+      const palm = new Mesh(new SphereGeometry(0.026, 8, 6), skin);
+      palm.scale.set(1, 1.3, 0.6);
+      hand.add(palm);
+      for (let c = 0; c < 4; c++) {
+        const t = new Mesh(claw(0.13 - Math.abs(c - 1.5) * 0.015, 0.0075, 1.1), bone);
+        t.position.set((c - 1.5) * 0.014, -0.02, 0.01);
+        t.rotation.set(0.15, 0, Math.PI + (c - 1.5) * 0.14);
+        hand.add(t);
       }
       elbow.add(fore, hand);
       shoulder.add(upper, elbow);
@@ -315,28 +392,43 @@ export class Imp extends Monster {
     };
     this.armL = arm(-1);
     this.armR = arm(1);
+    // Reverse-jointed legs with taloned feet.
     const leg = (s: number) => {
-      const hip = pivotAt(s * 0.09, 0.5, 0);
-      const thigh = cyl(0.045, 0.035, 0.26, skin);
-      const knee = pivotAt(0, -0.26, 0);
-      knee.rotation.x = 0.35;
-      const shin = cyl(0.033, 0.024, 0.24, skin);
-      const foot = new Mesh(new BoxGeometry(0.06, 0.03, 0.12), dark);
-      foot.position.set(0, -0.25, 0.03);
-      knee.add(shin, foot);
-      hip.add(thigh, knee);
+      const hip = pivotAt(s * 0.08, 0.5, 0);
+      const thighG = pivotAt(0, 0, 0);
+      thighG.rotation.x = -0.55;
+      const thigh = new Mesh(limb(0.048, 0.03, 0.24), skin);
+      const knee = pivotAt(0, -0.24, 0);
+      knee.rotation.x = 1.05;
+      const shin = new Mesh(limb(0.03, 0.02, 0.24, 0.1), skin);
+      const ankle = pivotAt(0, -0.24, 0);
+      ankle.rotation.x = -0.6;
+      const meta = new Mesh(limb(0.02, 0.016, 0.12, 0.05), skin);
+      const foot = pivotAt(0, -0.12, 0);
+      foot.rotation.x = 0.1;
+      for (let c = -1; c <= 1; c++) {
+        const t = new Mesh(claw(0.07, 0.008, 0.8), bone);
+        t.position.set(c * 0.016, 0, 0);
+        t.rotation.set(Math.PI / 2 - 0.2, c * 0.3, 0);
+        foot.add(t);
+      }
+      ankle.add(meta, foot);
+      knee.add(shin, ankle);
+      thighG.add(thigh, knee);
+      hip.add(thighG);
       this.model.add(hip);
       return hip;
     };
     this.legL = leg(-1);
     this.legR = leg(1);
-    this.tail = pivotAt(0, 0.08, -0.13);
-    const tail = cyl(0.025, 0.006, 0.4, dark);
-    tail.rotation.x = 0;
+    this.tail = pivotAt(0, 0.06, -0.1);
+    const tail = new Mesh(claw(0.5, 0.026, 1.4, 8), skin);
     this.tail.add(tail);
     this.tail.rotation.x = -2.2;
     this.body.add(this.tail);
     this.model.add(this.body);
+    this.wisps(14, 0.16, 0.25, 0.7, 0.24, 0x0a0410, 0.5, 0.22);
+    this.wisps(8, 0.12, 0.3, 0.75, 0.02, 0xd070ff, 0.9, 0.35, true);
     this.core = this.target(0.36, 2);
     this.bake();
   }
@@ -413,7 +505,7 @@ export class Imp extends Monster {
     this.model.position.z = lunge;
     this.head.rotation.x = -0.4 + raise * 0.3;
     this.tail.rotation.z = Math.sin(t * 5 + this.phase) * 0.4;
-    for (const e of this.eyes) e.scale.setScalar(0.12 + raise * 0.12 + 0.02 * Math.sin(t * 13));
+    for (const e of this.eyes) e.scale.setScalar(0.07 + raise * 0.06 + 0.01 * Math.sin(t * 13));
   }
 }
 
@@ -440,43 +532,66 @@ export class Wraith extends Monster {
 
   constructor(private readonly dist = 4 + Math.random() * 1.5) {
     super();
-    const cloth = this.rim(0x0d0a1e, 0x0a0618, 0x6f7dff, 0.1);
-    (cloth as MeshStandardMaterial).side = DoubleSide;
-    const hood = new Mesh(new ConeGeometry(0.2, 0.42, 16, 1, true), cloth);
-    hood.position.y = 0.1;
-    const face = new Mesh(new SphereGeometry(0.12, 12, 8), new MeshBasicMaterial({ color: 0x000000 }));
-    face.position.set(0, -0.02, 0.06);
-    const robe = new Mesh(new ConeGeometry(0.3, 0.95, 18, 1, true), cloth);
-    robe.position.y = -0.5;
+    const cloth = this.clothMat();
+    const bone = this.boneMat(0x9a9490);
+    const inner = new MeshBasicMaterial({ color: 0x020104 });
+    // Layered tattered robes: a reaper drifting above the ground.
+    const robeA = new Mesh(robe(0.15, 0.36, 1.2), cloth);
+    robeA.position.y = 0.08;
+    const robeB = new Mesh(robe(0.19, 0.44, 0.95), cloth);
+    robeB.rotation.y = 0.7;
+    const core = new Mesh(robe(0.11, 0.2, 0.75), inner);
+    core.position.y = 0.05;
+    const mantle = new Mesh(robe(0.07, 0.3, 0.36), cloth);
+    mantle.position.y = 0.16;
+    // A deep hood hiding a dim skull and two cold points of light.
+    const hood = new Mesh(robe(0.03, 0.17, 0.34), cloth);
+    hood.position.set(0, 0.42, 0);
+    hood.rotation.x = 0.28;
+    const face = new Mesh(new SphereGeometry(0.1, 12, 8), inner);
+    face.position.set(0, 0.17, 0.04);
+    const skull = new Mesh(skullGeo(), bone);
+    skull.scale.set(0.05, 0.055, 0.045);
+    skull.position.set(0, 0.17, 0.085);
     for (const s of [-1, 1]) {
-      const eye = new Mesh(new SphereGeometry(0.016, 8, 6), this.glow(0xb8c4ff));
-      eye.position.set(s * 0.045, -0.01, 0.16);
-      const glow = halo(0x7d8cff, 0.14, 1);
+      const eye = new Mesh(new SphereGeometry(0.011, 8, 6), this.glow(0xd8e4ff));
+      eye.position.set(s * 0.022, 0.185, 0.13);
+      const glow = halo(0x7d8cff, 0.1, 1);
       glow.position.copy(eye.position);
       this.eyes.push(glow);
       this.model.add(eye, glow);
+      // Sleeves reaching toward the hands.
+      const sleeve = new Mesh(robe(0.035, 0.085, 0.36, 10), cloth);
+      sleeve.position.set(s * 0.17, 0.1, 0.03);
+      sleeve.rotation.set(-0.45, 0, s * 0.42);
+      this.model.add(sleeve);
     }
-    // Tattered ribbons trailing below the robe.
-    const ribbonMat = new MeshBasicMaterial({ color: 0x14102a, side: DoubleSide, transparent: true, opacity: 0.85 });
+    // Tattered strips trailing below the robe.
+    const stripGeo = new PlaneGeometry(0.09, 0.6, 1, 4);
+    stripGeo.translate(0, -0.3, 0);
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2;
-      const g = new PlaneGeometry(0.07, 0.5);
-      g.translate(0, -0.25, 0);
-      const r = new Mesh(g, ribbonMat);
-      r.position.set(Math.sin(a) * 0.24, -0.9, Math.cos(a) * 0.24);
+      const r = new Mesh(stripGeo, cloth);
+      r.position.set(Math.sin(a) * 0.3, -0.85, Math.cos(a) * 0.3);
       r.rotation.y = a;
       this.ribbons.push(r);
       this.model.add(r);
     }
-    const handMat = this.rim(0x1a1530, 0x221a55, 0x9fb0ff);
+    // Skeletal hands with long jointed fingers.
     const mkHand = (s: number) => {
       const h = pivotAt(s * 0.32, -0.3, 0.18);
-      for (let c = -1; c <= 1; c++) {
-        const f = new Mesh(new ConeGeometry(0.012, 0.11, 5), handMat);
-        f.position.set(c * 0.018, -0.03, 0);
-        f.rotation.x = 0.4;
+      const palm = new Mesh(new BoxGeometry(0.05, 0.06, 0.018), bone);
+      h.add(palm);
+      for (let c = 0; c < 4; c++) {
+        const f = new Mesh(claw(0.13, 0.006, 1.0), bone);
+        f.position.set((c - 1.5) * 0.013, -0.03, 0);
+        f.rotation.set(0.5, 0, Math.PI + (c - 1.5) * 0.1);
         h.add(f);
       }
+      const th = new Mesh(claw(0.08, 0.006, 0.8), bone);
+      th.position.set(-s * 0.026, -0.01, 0.01);
+      th.rotation.set(0.7, 0, Math.PI - s * 0.7);
+      h.add(th);
       this.model.add(h);
       return h;
     };
@@ -486,7 +601,9 @@ export class Wraith extends Monster {
     this.orbGlow = halo(0x8c6bff, 0.4, 0.9);
     this.orb.add(this.orbGlow);
     this.orb.position.set(0, -0.28, 0.32);
-    this.model.add(hood, face, robe, this.orb);
+    this.model.add(robeA, robeB, core, mantle, hood, face, skull, this.orb);
+    this.wisps(18, 0.26, -1.05, -0.5, 0.36, 0x05020a, 0.55, 0.06);
+    this.wisps(8, 0.2, -0.9, 0.2, 0.02, 0x9ab0ff, 0.9, 0.25, true);
     this.model.scale.setScalar(1.45);
     this.core = this.target(0.42, 2);
     this.bake(...this.ribbons, this.orb);
@@ -597,63 +714,117 @@ export class Brute extends Monster {
 
   constructor() {
     super();
-    const skin = this.rim(0x120c1c, 0x0e0618, 0x8d4dff);
-    const iron = this.rim(0x2a2838, 0x10081c, 0x6a5aff, 0.85);
+    const skin = this.skinMat(0.6);
+    const iron = this.ironMat();
+    const horn = this.boneMat(0x5a504a);
+    const rag = this.clothMat();
     this.body = pivotAt(0, 1.0, 0);
-    const torso = new Mesh(new SphereGeometry(0.36, 16, 12), skin);
-    torso.scale.set(1.15, 1.1, 0.8);
-    torso.position.y = 0.32;
-    const chest = new Mesh(new BoxGeometry(0.62, 0.36, 0.12), iron);
-    chest.position.set(0, 0.42, 0.25);
+    // Barrel torso under a breastplate, the burning heart exposed through a rent in the iron.
+    const torso = new Mesh(profile([0, -0.12, 0.26, -0.1, 0.33, 0.08, 0.41, 0.34, 0.43, 0.5, 0.31, 0.66, 0, 0.7], 16), skin);
+    torso.scale.z = 0.76;
+    const front = new Mesh(new CylinderGeometry(0.44, 0.36, 0.52, 18, 2, true, -Math.PI / 2, Math.PI), iron);
+    front.scale.z = 0.82;
+    front.position.y = 0.36;
+    const back = new Mesh(new CylinderGeometry(0.44, 0.36, 0.52, 18, 2, true, Math.PI / 2, Math.PI), iron);
+    back.scale.z = 0.82;
+    back.position.y = 0.36;
     this.heart = new Mesh(new SphereGeometry(0.075, 12, 8), this.glow(0xd38bff));
     this.heart.position.set(0, 0.4, 0.33);
     const heartGlow = halo(0xa64dff, 0.45, 0.9);
     this.heart.add(heartGlow);
-    const head = new Mesh(new SphereGeometry(0.13, 12, 10), skin);
-    head.position.set(0, 0.78, 0.12);
-    const helm = new Mesh(new CylinderGeometry(0.15, 0.17, 0.14, 12), iron);
-    helm.position.set(0, 0.84, 0.12);
+    const rent = new Mesh(new TorusGeometry(0.1, 0.028, 6, 10), iron);
+    rent.position.set(0, 0.4, 0.33);
+    const gorget = new Mesh(new CylinderGeometry(0.19, 0.3, 0.14, 14), iron);
+    gorget.position.y = 0.66;
+    const belt = new Mesh(new TorusGeometry(0.33, 0.045, 6, 20), iron);
+    belt.rotation.x = Math.PI / 2;
+    belt.scale.y = 0.8;
+    belt.position.y = -0.06;
+    const skirt = new Mesh(robe(0.32, 0.4, 0.42, 16), rag);
+    skirt.position.y = -0.06;
+    this.body.add(torso, front, back, this.heart, rent, gorget, belt, skirt);
+    for (let k = 0; k < 4; k++) {
+      const a = -0.9 + k * 0.6;
+      const tasset = new Mesh(new BoxGeometry(0.17, 0.24, 0.025), iron);
+      tasset.position.set(Math.sin(a) * 0.34, -0.2, Math.cos(a) * 0.28);
+      tasset.rotation.set(0.15, a, 0);
+      this.body.add(tasset);
+    }
+    // Great helm: T-shaped burning visor, bull horns.
+    const helm = new Mesh(profile([0, 0, 0.15, 0, 0.165, 0.12, 0.155, 0.22, 0.11, 0.28, 0, 0.3], 16), iron);
+    helm.position.set(0, 0.68, 0.1);
+    const visorH = new Mesh(new BoxGeometry(0.2, 0.018, 0.02), this.glow(0xff7ae6));
+    visorH.position.set(0, 0.84, 0.255);
+    const visorV = new Mesh(new BoxGeometry(0.018, 0.1, 0.02), this.glow(0xff7ae6));
+    visorV.position.set(0, 0.79, 0.258);
+    this.body.add(helm, visorH, visorV);
     for (const s of [-1, 1]) {
-      const horn = new Mesh(new ConeGeometry(0.045, 0.32, 8), iron);
-      horn.position.set(s * 0.17, 0.95, 0.1);
-      horn.rotation.z = -s * 0.9;
-      const eye = new Mesh(new SphereGeometry(0.02, 8, 6), this.glow(0xffb0ff));
-      eye.position.set(s * 0.05, 0.78, 0.24);
-      const glow = halo(0xd05cff, 0.14, 1);
+      const h = new Mesh(claw(0.42, 0.05, 1.4, 8), horn);
+      h.position.set(s * 0.14, 0.88, 0.1);
+      h.rotation.set(0, 0, -s * 1.15);
+      const eye = new Mesh(new SphereGeometry(0.014, 8, 6), this.glow(0xffd0ff));
+      eye.position.set(s * 0.055, 0.84, 0.262);
+      const glow = halo(0xd05cff, 0.12, 1);
       glow.position.copy(eye.position);
       this.eyes.push(glow);
-      const pad = new Mesh(new SphereGeometry(0.16, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), iron);
-      pad.position.set(s * 0.42, 0.55, 0);
-      this.body.add(horn, eye, glow, pad);
+      this.body.add(h, eye, glow);
+      // Layered pauldrons with spikes.
+      for (let k = 0; k < 3; k++) {
+        const pad = new Mesh(new SphereGeometry(0.21 - k * 0.025, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), iron);
+        pad.position.set(s * (0.44 + k * 0.03), 0.6 - k * 0.09, 0);
+        pad.rotation.z = -s * (0.35 + k * 0.15);
+        pad.scale.set(1, 0.7, 1.05);
+        this.body.add(pad);
+      }
+      for (let k = 0; k < 2; k++) {
+        const sp = new Mesh(claw(0.2 - k * 0.05, 0.03, -0.3), horn);
+        sp.position.set(s * (0.42 + k * 0.08), 0.68 - k * 0.04, -0.04 + k * 0.08);
+        sp.rotation.z = -s * (0.4 + k * 0.4);
+        this.body.add(sp);
+      }
     }
-    this.body.add(torso, chest, this.heart, head, helm);
     const arm = (s: number, club: boolean) => {
       const shoulder = pivotAt(s * 0.45, 0.55, 0);
-      const upper = cyl(0.09, 0.075, 0.42, skin);
+      const upper = new Mesh(limb(0.1, 0.085, 0.42, 0.22), skin);
+      const brace = new Mesh(new CylinderGeometry(0.115, 0.105, 0.2, 12, 1, true), iron);
+      brace.position.y = -0.2;
       const elbow = pivotAt(0, -0.42, 0);
       elbow.rotation.x = -0.3;
-      const fore = cyl(0.08, 0.1, 0.38, skin);
-      const fist = new Mesh(new SphereGeometry(0.11, 10, 8), skin);
-      fist.position.y = -0.42;
-      elbow.add(fore, fist);
+      const couter = new Mesh(new SphereGeometry(0.1, 10, 8), iron);
+      const fore = new Mesh(limb(0.1, 0.12, 0.38, 0.05, 12), iron);
+      for (let k = 0; k < 3; k++) {
+        const sp = new Mesh(claw(0.09, 0.022, 0.2), horn);
+        sp.position.set(s * 0.1, -0.1 - k * 0.1, -0.02);
+        sp.rotation.z = -s * Math.PI / 2;
+        elbow.add(sp);
+      }
+      const fist = new Mesh(new BoxGeometry(0.19, 0.17, 0.19), iron);
+      fist.position.y = -0.46;
+      elbow.add(couter, fore, fist);
       if (club) {
-        const mace = pivotAt(0, -0.42, 0);
-        const shaft = new Mesh(new CylinderGeometry(0.035, 0.05, 0.85, 8), iron);
-        shaft.position.set(0, 0, 0.36);
+        // A flanged war-mace with a spiked crown.
+        const mace = pivotAt(0, -0.44, 0);
+        const shaft = new Mesh(new CylinderGeometry(0.03, 0.045, 0.9, 8), iron);
+        shaft.position.set(0, 0, 0.38);
         shaft.rotation.x = Math.PI / 2;
-        const headM = new Mesh(new SphereGeometry(0.15, 12, 10), iron);
-        headM.position.set(0, 0, 0.8);
-        for (let i = 0; i < 6; i++) {
-          const spike = new Mesh(new ConeGeometry(0.035, 0.14, 6), this.glow(0xb98cff));
-          const a = (i / 6) * Math.PI * 2;
-          spike.position.set(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0.8);
-          spike.rotation.z = a - Math.PI / 2;
-          mace.add(spike);
-        }
+        const headM = new Mesh(profile([0, -0.14, 0.09, -0.12, 0.13, 0, 0.09, 0.12, 0, 0.14], 10), iron);
+        headM.position.set(0, 0, 0.82);
+        headM.rotation.x = Math.PI / 2;
         mace.add(shaft, headM);
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 7) * Math.PI * 2;
+          const flange = new Mesh(new BoxGeometry(0.02, 0.1, 0.24), iron);
+          flange.position.set(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0.82);
+          flange.rotation.z = a - Math.PI / 2;
+          mace.add(flange);
+        }
+        const tip = new Mesh(claw(0.18, 0.04, 0), horn);
+        tip.position.set(0, 0, 0.95);
+        tip.rotation.x = Math.PI / 2;
+        mace.add(tip);
         elbow.add(mace);
       }
-      shoulder.add(upper, elbow);
+      shoulder.add(upper, brace, elbow);
       this.body.add(shoulder);
       return shoulder;
     };
@@ -661,19 +832,28 @@ export class Brute extends Monster {
     this.armR = arm(1, true);
     const leg = (s: number) => {
       const hip = pivotAt(s * 0.22, 1.0, 0);
-      const thigh = cyl(0.12, 0.1, 0.5, skin);
+      const thigh = new Mesh(limb(0.13, 0.1, 0.5, 0.15), skin);
+      const cuisse = new Mesh(new CylinderGeometry(0.14, 0.11, 0.38, 12, 1, true, -Math.PI / 2, Math.PI), iron);
+      cuisse.position.y = -0.24;
       const knee = pivotAt(0, -0.5, 0);
-      const shin = cyl(0.1, 0.12, 0.46, iron);
-      const foot = new Mesh(new BoxGeometry(0.2, 0.08, 0.3), iron);
+      const poleyn = new Mesh(new SphereGeometry(0.1, 10, 8), iron);
+      poleyn.position.z = 0.04;
+      const shin = new Mesh(limb(0.1, 0.12, 0.46, 0.05, 12), iron);
+      const foot = new Mesh(new BoxGeometry(0.2, 0.09, 0.3), iron);
       foot.position.set(0, -0.48, 0.05);
-      knee.add(shin, foot);
-      hip.add(thigh, knee);
+      const toe = new Mesh(claw(0.14, 0.06, 0), iron);
+      toe.position.set(0, -0.48, 0.2);
+      toe.rotation.x = Math.PI / 2;
+      knee.add(poleyn, shin, foot, toe);
+      hip.add(thigh, cuisse, knee);
       this.model.add(hip);
       return hip;
     };
     this.legL = leg(-1);
     this.legR = leg(1);
     this.model.add(this.body);
+    this.wisps(16, 0.32, 1.3, 2.0, 0.42, 0x080410, 0.5, 0.3);
+    this.wisps(12, 0.3, 1.2, 2.0, 0.03, 0xff70d0, 0.9, 0.45, true);
     this.core = this.target(0.48, 7);
     this.bake(this.heart);
   }
@@ -786,56 +966,114 @@ export class ShadowEater extends Monster {
 
   constructor() {
     super();
-    const skin = this.rim(0x07050f, 0x05020c, 0x7a4dff);
-    const cloak = this.rim(0x0b0718, 0x070312, 0x5a3dd0);
-    const robe = new Mesh(new ConeGeometry(2.2, 5.5, 24, 1, true), cloak);
-    (cloak as MeshStandardMaterial).side = DoubleSide;
-    robe.position.y = 2.75;
-    const torso = new Mesh(new SphereGeometry(1.25, 20, 14), skin);
-    torso.scale.set(1.2, 1.1, 0.8);
-    torso.position.y = 5.0;
+    const bone = this.boneMat(0x8a8078);
+    const cloth = this.clothMat();
+    const inner = new MeshBasicMaterial({ color: 0x020104 });
+    // Layered tattered robes falling from its shoulders to the ground.
+    // Parted at the front so the ribcage and its burning heart show.
+    const robeA = new Mesh(robe(1.3, 2.7, 5.5, 28, 0.55), cloth);
+    robeA.position.y = 5.5;
+    const robeB = new Mesh(robe(1.05, 2.35, 4.8, 28, 0.75), cloth);
+    robeB.position.y = 5.3;
+    const robeCore = new Mesh(robe(0.9, 1.7, 4.1, 16), inner);
+    robeCore.position.y = 4.1;
+    const mantle = new Mesh(robe(0.55, 2.0, 1.8, 24, 0.9), cloth);
+    mantle.position.y = 6.1;
+    // A ribcage around the burning heart.
+    const chestDark = new Mesh(new SphereGeometry(0.85, 16, 12), inner);
+    chestDark.position.set(0, 5.0, 0);
+    chestDark.scale.set(1.1, 1.2, 0.8);
+    this.model.add(robeA, robeB, robeCore, mantle, chestDark);
+    for (let k = 0; k < 6; k++) {
+      const r = [0.95, 1.08, 1.15, 1.15, 1.06, 0.9][k];
+      const rib = new Mesh(new TorusGeometry(r, 0.075, 6, 18, Math.PI), bone);
+      rib.rotation.set(Math.PI / 2 + 0.25, 0, 0);
+      rib.scale.set(1, 0.8, 1);
+      rib.position.set(0, 4.25 + k * 0.28, 0.05);
+      this.model.add(rib);
+    }
+    const sternum = new Mesh(new BoxGeometry(0.16, 1.5, 0.12), bone);
+    sternum.position.set(0, 5.0, 0.95);
+    sternum.rotation.x = 0.12;
+    this.model.add(sternum);
+    for (let k = 0; k < 4; k++) {
+      const v = new Mesh(new SphereGeometry(0.16 - k * 0.015, 10, 8), bone);
+      v.position.set(0, 5.75 + k * 0.2, 0.05);
+      this.model.add(v);
+    }
+    // Horned skull: crown of horns, slit eyes, hanging fanged jaw.
     this.headG = pivotAt(0, 6.5, 0.2);
-    const skull = new Mesh(new SphereGeometry(0.7, 18, 12), skin);
-    skull.scale.set(1, 1.1, 0.95);
-    this.headG.add(skull);
+    const skull = new Mesh(skullGeo(), bone);
+    skull.scale.set(0.55, 0.6, 0.55);
+    const jaw = pivotAt(0, -0.3, 0.15);
+    jaw.rotation.x = 0.35;
+    const jawM = new Mesh(new BoxGeometry(0.62, 0.14, 0.75), bone);
+    jawM.position.set(0, -0.05, 0.3);
+    jaw.add(jawM);
+    for (let k = 0; k < 6; k++) {
+      const x = -0.25 + k * 0.1;
+      const up = new Mesh(claw(0.24, 0.035, 0.15), bone);
+      up.position.set(x, -0.3, 0.68 - Math.abs(x) * 0.5);
+      up.rotation.z = Math.PI;
+      this.headG.add(up);
+      const lo = new Mesh(claw(0.2, 0.03, -0.15), bone);
+      lo.position.set(x, 0.02, 0.62 - Math.abs(x) * 0.5);
+      jaw.add(lo);
+    }
+    const maw = new Mesh(new SphereGeometry(0.18, 10, 8), this.glow(0xff5ad0));
+    maw.position.set(0, -0.32, 0.35);
+    this.headG.add(skull, jaw, maw);
     for (const s of [-1, 1]) {
-      const horn = new Mesh(new ConeGeometry(0.22, 1.6, 10), skin);
-      horn.position.set(s * 0.6, 0.75, -0.1);
-      horn.rotation.z = -s * 0.6;
-      const eye = new Mesh(new SphereGeometry(0.11, 10, 8), this.glow(0xffc0ff));
-      eye.position.set(s * 0.25, 0.05, 0.62);
-      const glow = halo(0xc04dff, 0.9, 1);
+      const socket = new Mesh(new SphereGeometry(0.13, 10, 8), inner);
+      socket.position.set(s * 0.22, 0.08, 0.5);
+      const eye = new Mesh(new SphereGeometry(1, 10, 8), this.glow(0xffd0ff));
+      eye.scale.set(0.11, 0.035, 0.05);
+      eye.rotation.z = s * 0.35;
+      eye.position.set(s * 0.22, 0.08, 0.6);
+      const glow = halo(0xc04dff, 0.8, 1);
       glow.position.copy(eye.position);
       this.eyes.push(glow);
-      this.headG.add(horn, eye, glow);
+      const big = new Mesh(claw(2.2, 0.2, -2.3, 10), bone);
+      big.position.set(s * 0.45, 0.4, -0.1);
+      big.rotation.set(-0.3, 0, -s * 0.8);
+      this.headG.add(socket, eye, glow, big);
+      for (let k = 0; k < 3; k++) {
+        const h = new Mesh(claw(0.9 + k * 0.25, 0.08, -0.6), bone);
+        h.position.set(s * (0.12 + k * 0.14), 0.5, -0.05 - k * 0.05);
+        h.rotation.set(-0.25, 0, -s * (0.15 + k * 0.25));
+        this.headG.add(h);
+      }
     }
-    const maw = new Mesh(new BoxGeometry(0.6, 0.08, 0.1), this.glow(0xff7ae0));
-    maw.position.set(0, -0.32, 0.62);
-    this.headG.add(maw);
-    this.model.add(robe, torso, this.headG);
-    // Chest core.
+    this.model.add(this.headG);
+    // Chest core: the heart burning inside the ribs.
     const chestCore = new Mesh(new SphereGeometry(0.42, 18, 12), this.glow(0xf2c6ff));
     chestCore.position.set(0, 5.0, 1.0);
     chestCore.add(halo(0xb44dff, 2.4, 0.9));
     this.coreMeshes.push(chestCore);
     this.model.add(chestCore);
     this.chest = this.target(0.6, 6);
-    // Arms (shoulder pivots) ending in clawed hands holding cores.
+    // Arms: tattered sleeves over bone, ending in long-fingered claws holding cores.
     this.hands = [];
     for (const s of [-1, 1]) {
       const shoulder = pivotAt(s * 1.45, 5.4, 0);
-      const upper = cyl(0.32, 0.26, 2.6, skin);
+      const upper = new Mesh(robe(0.5, 0.62, 2.6, 14), cloth);
+      const armBone = new Mesh(limb(0.2, 0.13, 2.6, 0.1, 10), bone);
+      upper.add(armBone);
       this.uppers.push(upper);
       shoulder.add(upper);
       const palm = pivotAt(0, -2.6, 0);
-      const hand = new Mesh(new SphereGeometry(0.42, 14, 10), skin);
-      hand.scale.set(1, 0.7, 1.2);
-      for (let c = -1.5; c <= 1.5; c++) {
-        const claw = new Mesh(new ConeGeometry(0.07, 0.6, 6), this.glow(0xd8b8ff));
-        claw.position.set(c * 0.16, -0.25, 0.35);
-        claw.rotation.x = Math.PI / 2 + 0.6;
-        palm.add(claw);
+      const hand = new Mesh(new BoxGeometry(0.62, 0.28, 0.55), bone);
+      hand.position.set(0, -0.05, 0.05);
+      for (let c = 0; c < 4; c++) {
+        const f = new Mesh(claw(1.15 - Math.abs(c - 1.5) * 0.12, 0.075, 1.5, 8), bone);
+        f.position.set((c - 1.5) * 0.16, -0.15, 0.25);
+        f.rotation.set(0.25, 0, Math.PI + (c - 1.5) * 0.08);
+        palm.add(f);
       }
+      const thumb = new Mesh(claw(0.7, 0.08, 1.2), bone);
+      thumb.position.set(-s * 0.32, -0.08, 0.2);
+      thumb.rotation.set(0.6, 0, Math.PI - s * 0.8);
+      palm.add(thumb);
       // The core burns in front of the palm (between the claws), facing you.
       const core = new Mesh(new SphereGeometry(0.24, 14, 10), this.glow(0xf2c6ff));
       core.position.set(0, 0.12, 0.6);
@@ -848,6 +1086,8 @@ export class ShadowEater extends Monster {
       this.palms.push(palm);
       this.hands.push(this.target(0.38, 3));
     }
+    this.wisps(30, 2.4, 0, 2.2, 1.7, 0x05020a, 0.5, 0.45);
+    this.wisps(36, 1.6, 2.5, 7.5, 0.09, 0xc070ff, 0.9, 0.6, true);
     this.root.position.copy(this.rest);
     this.bake(...this.coreMeshes, ...this.uppers);
   }

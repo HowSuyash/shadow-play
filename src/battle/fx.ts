@@ -357,16 +357,19 @@ export function mergeStatic(root: Object3D, keep: Set<Object3D>): void {
       const total = parts.reduce((n, g) => n + g.attributes.position.count, 0);
       const pos = new Float32Array(total * 3);
       const nor = new Float32Array(total * 3);
+      const uv = new Float32Array(total * 2);
       let o = 0;
       for (const g of parts) {
         pos.set(g.attributes.position.array as Float32Array, o * 3);
         if (g.attributes.normal) nor.set(g.attributes.normal.array as Float32Array, o * 3);
+        if (g.attributes.uv) uv.set(g.attributes.uv.array as Float32Array, o * 2);
         o += g.attributes.position.count;
         g.dispose();
       }
       const merged = new BufferGeometry();
       merged.setAttribute('position', new BufferAttribute(pos, 3));
       merged.setAttribute('normal', new BufferAttribute(nor, 3));
+      merged.setAttribute('uv', new BufferAttribute(uv, 2));
       merged.computeBoundingSphere();
       const mesh = new Mesh(merged, mat);
       parent.add(mesh);

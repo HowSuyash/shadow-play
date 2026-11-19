@@ -67,12 +67,12 @@ After each chapter, the Shadow Eater's monsters come for your light. **The shado
 
 Each hand holds its own weapon (one-hand shapes go to the hand that made them; the two-hand bird goes to your right hand), so you can fight with a **shield in one hand and a blade in the other**. Make a different shape to swap. Weapons you've learned stay with you from battle to battle.
 
-**The monsters** are animated 3D shadow creatures with violet rim light, glowing eyes and a body that breaks into shards when defeated:
+**The monsters** are dark-fantasy shadow creatures: leathery near-black flesh with glowing corruption veins, scarred iron, old bone and tattered cloth. Shadow smoke and embers drift off them, and their bodies shatter into shards when defeated:
 
-- **Shadow Imps** run at you, rear up with claws high (the moment to strike) and lunge.
-- **Wraiths** float out of reach and hurl shadow orbs, then swoop in close to rake you with their claws.
-- **Iron Brutes** are slow and armoured, with a glowing heart. They raise a spiked mace for a long wind-up and slam. Heavy hits stagger them.
-- **The Shadow Eater** is the final boss: a giant with **three glowing cores** (chest and both hands). It hurls orb volleys, calls imps through rifts, and slams a hand down right in front of you, which is your chance to hit that hand's core up close.
+- **Shadow Imps** are gaunt ghouls with protruding ribs, a long fanged skull, slit eyes, spine spikes, reverse-jointed legs and long talons. They run at you, rear up with claws high (the moment to strike) and lunge.
+- **Wraiths** are reapers in layered tattered robes, with a dim skull deep in the hood and skeletal fingers. They float out of reach and hurl shadow orbs, then swoop in close to rake you with their claws.
+- **Iron Brutes** are plated ogre-knights with a horned great helm, a burning T-visor, and a heart glowing through a rent in the breastplate. They raise a spiked mace for a long wind-up and slam. Heavy hits stagger them.
+- **The Shadow Eater** is the final boss: a robed titan with a horned skull and long bony claws. It has **three glowing cores**: the heart inside its ribcage and one in each hand. It hurls orb volleys, calls imps through rifts, and slams a hand down right in front of you, which is your chance to hit that hand's core up close.
 
 | Battle | World | You learn | Waves |
 |---|---|---|---|
@@ -185,7 +185,7 @@ Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub 
 
 - **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
 - **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.
-- **Battles:** monsters are built from primitives with a fresnel rim-light shader (so they read against any world) and a hit-flash uniform. Each monster's static pieces are merged per moving part, so a monster costs about 20 draw calls. A busy battle with five monsters runs about 150–175 draw calls at 60 fps on an integrated GPU. Battlefields add no real-time lights.
+- **Battles:** monsters are procedural meshes (lathed torsos, tapered limbs, bent claws and horns, open-fronted robes; see [creatureKit.ts](src/battle/creatureKit.ts)). They use painted textures (flesh with emissive veins, scarred iron, bone, tattered cloth with alpha), a fresnel rim-light shader that keeps them readable against any world, and a hit-flash uniform. Each monster's static pieces are merged per moving part, so a monster costs about 25–35 draw calls. A busy battle with five monsters runs about 150–175 draw calls at 60 fps on an integrated GPU. Battlefields add no real-time lights.
 - **Performance:** it targets 72 fps on Quest. There is one shadow light and no post-processing. Silhouettes are unlit flat geometry, and the hand rigs, partner avatar and particles are single instanced/pooled draw calls. The per-frame path doesn't allocate.
 
 **On a computer** (no headset), *Play on screen* gives a keyboard-and-mouse version for trying it out. Drag to look around; **Enter** starts; **1–4** stand in for the four shapes. In battles **the mouse is your weapon hand**: sweep it to swing the blade or whip, **click** to throw a firebird, **1–4** to change weapon, **Shift + 1–4** for the left hand, and hold **Space** to raise the shield.
