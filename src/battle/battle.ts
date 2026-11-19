@@ -1180,52 +1180,6 @@ export class Battle implements ArenaCtx {
     const fireColor = world === 'castle' || world === 'realm' ? 0xa66bff : world === 'forest' ? 0x9dffb0 : 0xffa040;
     brazier(-2.6, -3.2, fireColor);
     brazier(2.6, -3.2, fireColor);
-    if (world === 'theatre') {
-      // Temple courtyard: flagstones, gopuram towers, rows of pillars.
-      const floor = new Mesh(new PlaneGeometry(26, 22), new MeshStandardMaterial({ color: 0x4a3222, roughness: 0.95 }));
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.set(0, -0.005, -12);
-      add(floor);
-      const towerMat = new MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.85, emissive: 0x1a0c04 });
-      for (const [x, z, s] of [
-        [0, -17, 1.4],
-        [-9, -14, 0.9],
-        [9, -14, 0.9],
-      ]) {
-        const tower = new Group();
-        for (let k = 0; k < 6; k++) {
-          const w = (5 - k * 0.7) * s;
-          const tier = new Mesh(new BoxGeometry(w, 1.1 * s, w * 0.6), towerMat);
-          tier.position.y = (0.55 + k * 1.1) * s;
-          tower.add(tier);
-          for (let j = -1; j <= 1; j++) {
-            const win = new Mesh(new PlaneGeometry(0.25 * s, 0.4 * s), glowMat(0xffa040));
-            win.position.set(j * w * 0.28, (0.55 + k * 1.1) * s, w * 0.3 + 0.01);
-            tower.add(win);
-          }
-        }
-        const kalasha = new Mesh(new SphereGeometry(0.35 * s, 10, 8), new MeshStandardMaterial({ color: 0xd6a540, metalness: 0.9, roughness: 0.3, emissive: 0x6a4210 }));
-        kalasha.position.y = 7 * s;
-        tower.add(kalasha);
-        tower.position.set(x, 0, z);
-        add(tower);
-      }
-      const pillarMat = new MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.8 });
-      for (let k = 0; k < 5; k++) {
-        for (const sx of [-1, 1]) {
-          const p = new Mesh(new CylinderGeometry(0.3, 0.35, 4, 10), pillarMat);
-          p.position.set(sx * 5, 2, -4 - k * 2.6);
-          add(p);
-        }
-      }
-      for (const z of [-6, -10]) {
-        for (const sx of [-1, 1]) {
-          const torch = halo(0xffa040, 1.2, 0.85);
-          torch.position.set(sx * 4.6, 2.6, z);
-          add(torch);
-        }
-      }
-    }
     if (world === 'realm') {
       // The world's own giant steps aside: the real Shadow Eater fights you.
       DOWN_FWD.set(0, 0, 0);
