@@ -2,11 +2,11 @@
 
 **Your Hands. Your Shadows. Your World.**
 
-A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the browser. Sit in a candle-lit stone room facing a great wall. Your real tracked hands cast real shadows on it. Form a classic hand-shadow shape, hold it for a second, and the shadow **comes alive** as a creature that acts in the shadow world on the wall.
+A hands-only WebXR shadow-puppet adventure for Meta Quest, playable in the browser. Sit in a candle-lit stone room facing a great wall. Your real tracked hands cast real shadows on it. Form a classic hand-shadow shape, hold it for a second, and the shadow **comes alive** as a creature that acts in the shadow world on the wall. Then the monsters come, and **the shadows you make become weapons in your hands**: a fire-edged blade, a firebird to throw, a moon shield, a serpent whip.
 
 - **100% hand tracking.** No controller anywhere: start, menus, pause, restart, co-op and duels are all done with your hands.
 - **Seated and comfortable.** Every interaction is within about 60 cm. No locomotion, no camera movement.
-- **Quick to start, short to finish.** It's playable seconds after loading, and the story takes about 5–8 minutes.
+- **Quick to start.** It's playable seconds after loading. The story with its five battles takes about 10–15 minutes.
 - **Nothing to download.** It runs from an HTTPS link in the Meta Quest Browser.
 
 **Play:** https://howsuyash.github.io/shadow-play/
@@ -19,11 +19,11 @@ When you enter VR you're not looking at a screen: you're **inside** a 360° proc
 
 | World | Where | What surrounds you |
 |---|---|---|
-| **Shadow Theatre** | menus, Chapter II | An ancient **Indian shadow-puppetry temple**: carved sandstone pillars with brass bands, a tiered **gopuram** tower crowning the shadow wall, tall **kuthuvilakku** lamps, floating brass **diyas**, a marigold **toran**, glowing translucent **Tholu Bommalata**-style leather puppets, a golden rangoli floor, a warm keyhole doorway, and a tanpura-like drone |
-| **Sky Kingdom** | Chapter I, the ending | You sit on a floating island above a sunset sea of clouds: other islands, a sky palace, waterfalls, a lantern-lit bridge, a pale moon, wind |
-| **Forgotten Forest** | Chapter III | Giant trees and roots, glowing mushrooms, cyan fireflies that drift toward your hands, a tunnel into the hill, crickets |
-| **Dark Castle** | Chapter IV | Gothic pillars and arches, sealed giant doors behind you, violet torches, glowing trap glyphs, banners, mist |
-| **Shadow Realm** | Chapter V | Colossal ruined pillars, orbiting rocks, violet energy rings, an icy moon, a cracked glowing floor, and the Shadow Eater looming over the wall |
+| **Shadow Theatre** | menus, Chapter II | An ancient **Indian shadow-puppetry temple** (a Dravidian *mandapa*). The shadow wall is a hand-sewn **cloth screen** in a carved stone proscenium with a cusped **torana** arch, brass bells and marigold **toran** garlands. Around it: rows of bracket-capital pillars, hanging brass lamps, tall **kuthuvilakku** lamps, floating **diyas**, backlit **Tholu Bommalata** leather puppets glowing in the aisles, and a golden rangoli floor. Behind you, a candlelit stair rises to a moonlit **keyhole arch**. When the screen sinks for battle, it reveals a moonlit courtyard of lamp posts and colonnades before a towering **gopuram** |
+| **Sky Kingdom** | Chapter I, the ending | You sit on a marble terrace with a balustrade, on a floating island at golden hour, above a sea of clouds. Around you: white-and-gold palaces with teal spires on their own islands, waterfalls pouring into the clouds, arched bridges and a rope bridge, blossom trees, drifting crystals, a ringed planet and a crescent moon. The wall is a marble gateway, and beyond it a meadow island where battles are fought |
+| **Forgotten Forest** | Chapter III | A bioluminescent night wood: colossal trees with flared root buttresses vanishing into a dark canopy, pink mushrooms glowing from their gills, ferns, cyan glow-bulbs, clouds of fireflies that swarm toward your hands, blue mist, moonbeams, and a tunnel breathing blue light. The wall is a moss-grown stone tablet gripped by roots |
+| **Dark Castle** | Chapter IV | A gothic cathedral-keep: clustered piers, pointed arcades, a ribbed vault lost in violet haze, **stained-glass** lancets, a **rose window** over the great sealed doors behind you, iron chandeliers, banners and smouldering trap runes. Beyond the screen lies the nave's apse with an empty throne under a tall glowing window |
+| **Shadow Realm** | Chapter V | A ruined colonnade of fluted columns, many broken, on cracked flagstones under a **colossal cratered planet**. Shattered rock drifts in orbit, violet corruption seeps from floor cracks, lightning strikes the horizon, and the Shadow Eater looms beyond the wall |
 
 Art direction: warm gold for magic, deep navy for darkness, violet for the Shadow Eater's corruption. Each world reacts when a creature comes alive (lamps flare, mushrooms pulse, runes blaze, the Shadow Eater's eyes burn). Moving between worlds uses a comfortable head-locked fade to black and a portal burst on the wall, with no forced camera movement.
 
@@ -54,6 +54,38 @@ Defeating the Shadow Eater awakens the legendary **Shadow Dragon**, which soars 
 
 **Your shadows write the story.** The branches lead to different outcomes and a different cast at the finale, and the ending recaps *your* tale, one line per chapter, with your time and score. If you're stuck, shadow pictures of shapes that would work appear on the wall (after 4 s in the tutorial, 8 s in chapters II–IV, 2.5 s in the boss fight). A creature that doesn't fit the scene looks around, puzzled, and fades away.
 
+## Shadow battles: your shadows become weapons
+
+After each chapter, the Shadow Eater's monsters come for your light. **The shadow wall sinks away**, the world opens into a battlefield, and shadow rifts tear open in front of you. Now the same hand shapes do something new: **the shadow leaves the wall and becomes a real weapon in your hand.** A gold ring spins around your hand while you hold the shape (0.6 s in battle), a dark shadow condenses in your palm, and the weapon bursts into being with a flash and its name.
+
+| Shadow | Becomes | How you fight with it |
+|---|---|---|
+| 🐕 **Dog** | **Hound Blade**, a fire-edged sword with a hound's-ear guard | **Swing** your hand through a monster. Fast swings burn brighter, leave a fiery trail and hit twice as hard. Slash shadow orbs out of the air. |
+| 🐦 **Bird** | **Firebird**, a little bird of flame perched on your palm | **Pinch**, or **flick** your hand forward, to throw it. It homes gently on the monster you threw at and burns through orbs. A new one forms in your hand. |
+| 🐇 **Rabbit** | **Moon Shield**, a moon-silver shield with a rabbit in the crescent | **Block** blows and orbs. A blocked orb **flies straight back at whoever threw it**. Shove the shield into a monster to bash it. |
+| 🐍 **Snake** | **Serpent Whip**, a living serpent on a handle (rope physics) | **Flick your wrist**: the tip outruns your hand, **cracks**, and hits hard at long reach. |
+
+Each hand holds its own weapon (one-hand shapes go to the hand that made them; the two-hand bird goes to your right hand), so you can fight with a **shield in one hand and a blade in the other**. Make a different shape to swap. Weapons you've learned stay with you from battle to battle.
+
+**The monsters** are dark-fantasy shadow creatures: leathery near-black flesh with glowing corruption veins, scarred iron, old bone and tattered cloth. Shadow smoke and embers drift off them, and their bodies shatter into shards when defeated:
+
+- **Shadow Imps** are gaunt ghouls with protruding ribs, a long fanged skull, slit eyes, spine spikes, reverse-jointed legs and long talons. They run at you, rear up with claws high (the moment to strike) and lunge.
+- **Wraiths** are reapers in layered tattered robes, with a dim skull deep in the hood and skeletal fingers. They float out of reach and hurl shadow orbs, then swoop in close to rake you with their claws.
+- **Iron Brutes** are plated ogre-knights with a horned great helm, a burning T-visor, and a heart glowing through a rent in the breastplate. They raise a spiked mace for a long wind-up and slam. Heavy hits stagger them.
+- **The Shadow Eater** is the final boss: a robed titan with a horned skull and long bony claws. It has **three glowing cores**: the heart inside its ribcage and one in each hand. It hurls orb volleys, calls imps through rifts, and slams a hand down right in front of you, which is your chance to hit that hand's core up close.
+
+| Battle | World | You learn | Waves |
+|---|---|---|---|
+| after I | Sky Kingdom | 🐦 Firebird | wraiths, then wraiths and imps |
+| after II | Shadow Theatre (the temple courtyard) | 🐕 Hound Blade | imps, then imps and a wraith |
+| after III | Forgotten Forest | 🐇 Moon Shield | orb-throwing wraiths, then a mixed wave |
+| after IV | Dark Castle | 🐍 Serpent Whip | Iron Brutes with imps, then everything |
+| after V | Shadow Realm | everything | **the Shadow Eater** |
+
+**Feel:** hits flash the monster gold and knock it back, sparks burst along the swing, big hits drop into a beat of slow motion, and every swing, crack, clang, burn, screech, stomp and death is synthesized live. War drums join each world's song during a battle. Your health is five **life flames** low in your view, with a violet flash when you're hit. Stay safe for a few seconds and they rekindle. If they all go out, *your light fades*: you rise again at full strength and the wave restarts (the boss keeps the cores you've already broken). If you can't make a shape, the featured weapon appears anyway after a while, so nobody gets stuck.
+
+**Story and map:** the run opens with a short prologue (the temple's puppeteers, the Shadow Eater, the last candle, *your shadows remember*). Between chapters the wall shows **the Shadow Atlas**, a hand-drawn parchment map of the five lands, where a candle-flame token travels the road to the next one.
+
 ## Modes
 
 The main menu floats about 36 cm in front of you as two rows of big round buttons (**Story · Duel · Memory / Gallery · Settings · Credits**). **Pinch** (thumb tip to index tip) on one to choose it, or just hold an open palm toward the wall to begin the story.
@@ -74,7 +106,10 @@ While you play, a one-line **objective** sits at the top of the wall, and the na
 | Choose a menu button | **Pinch** on it |
 | Start the story / play again | Hold an **open palm** toward the wall for 1 s |
 | Summon a creature | Hold its shape for 1 s |
-| Pause (story, duel or memory) | Turn **both palms face-up** for 1 s |
+| Pull a weapon into your hand (battles) | Hold its shape for 0.6 s with that hand |
+| Swing the blade / crack the whip / bash with the shield | Move your hand |
+| Throw a firebird | **Pinch**, or flick your hand forward |
+| Pause (story, battles, duel or memory) | Turn **both palms face-up** for 1 s |
 | Pause menu | Pinch **Resume · Restart** (this chapter) **· Recenter · Leave** |
 
 Opening the Quest system menu also pauses the game.
@@ -141,11 +176,19 @@ Every push to `main` typechecks, runs the tests, builds and deploys to **GitHub 
 
 ## Art, audio and performance
 
-- **Worlds:** [src/scene/worlds.ts](src/scene/worlds.ts) builds each world lazily the first time it's visited. Repeated scenery (pillars, trees, mushrooms, islands, rocks, lamps) is instanced. Scenery uses **baked emissive light** rather than extra real-time lights, so the hand shadows on the wall keep their contrast. Each world costs 18–28 draw calls and holds 60 fps (the display cap) on an integrated laptop GPU.
+- **Worlds:** [src/scene/worlds.ts](src/scene/worlds.ts) builds each world in [src/scene/envs/](src/scene/envs/) lazily the first time it's visited. Everything is generated in code, with no downloads:
+  - **Textures** are painted on canvas: fBm-noise masonry with bevelled blocks, bark, marble, stained glass, leather puppets, and an equirectangular sky per world.
+  - **Draw calls:** static scenery is merged per material, so a world costs 41–74 draw calls.
+  - **Lighting is baked into vertex colours** when a world is built: candle pools, moonlight, mushroom glow and floor occlusion ([kit.ts](src/scene/envs/kit.ts)). The scenery needs no real-time lights, and the hand shadows on the wall keep their contrast.
+  - **The wall:** each world gives the shadow wall its own surface (cloth screen, mossy tablet, ashlar, marble, rune-carved stone).
+  - **Performance:** every world holds 60 fps (the display cap) on an integrated laptop GPU.
 
 - **Art:** everything is procedural, with no external assets. The stone is a canvas-generated texture. The creatures, props and scenery backdrops (village, forest, castle, moon and floating islands) are flat silhouettes built from shapes. The colour palette is warm candle gold, deep black and purple magic.
 - **Audio:** every sound is synthesized with the Web Audio API: chimes, a bark, wing flaps, digging, mews, chirps, a gate rumble, the boss's roar, seals shattering, fanfares, and a room hum with candle crackle.
+- **Battles:** monsters are procedural meshes (lathed torsos, tapered limbs, bent claws and horns, open-fronted robes; see [creatureKit.ts](src/battle/creatureKit.ts)). They use painted textures (flesh with emissive veins, scarred iron, bone, tattered cloth with alpha), a fresnel rim-light shader that keeps them readable against any world, and a hit-flash uniform. Each monster's static pieces are merged per moving part, so a monster costs about 25–35 draw calls. A busy battle with five monsters runs about 150–175 draw calls at 60 fps on an integrated GPU. Battlefields add no real-time lights.
 - **Performance:** it targets 72 fps on Quest. There is one shadow light and no post-processing. Silhouettes are unlit flat geometry, and the hand rigs, partner avatar and particles are single instanced/pooled draw calls. The per-frame path doesn't allocate.
+
+**On a computer** (no headset), *Play on screen* gives a keyboard-and-mouse version for trying it out. Drag to look around; **Enter** starts; **1–4** stand in for the four shapes. In battles **the mouse is your weapon hand**: sweep it to swing the blade or whip, **click** to throw a firebird, **1–4** to change weapon, **Shift + 1–4** for the left hand, and hold **Space** to raise the shield.
 
 ## Code map
 
@@ -169,7 +212,13 @@ src/
   effects/particles.ts, glowHands.ts   sparks + dust, partner avatar
   ui/wallUI.ts            wall text, hold ring, hints, fragments bar, pinch menus
   ui/gallery.ts, lobby.ts, debugOverlay.ts
-tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, memory, progress
+  ui/atlas.ts             the Shadow Atlas map between chapters
+  battle/battle.ts        battles: waves, rifts, collisions, health, HUD, battlefields
+  battle/weapons.ts       Hound Blade, Firebird, Moon Shield, Serpent Whip (verlet rope)
+  battle/monsters.ts      Shadow Imp, Wraith, Iron Brute, the Shadow Eater boss, rifts
+  battle/rig.ts           hand → grip frame + velocity (tracked hands or the mouse)
+  battle/fx.ts            3D sparks, swing trails, rim-lit monster material, mesh merging
+tests/                    Vitest: gestures on real joint fixtures, chapters, boss, duel, memory, progress, battles
 ```
 
 See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for what's done, what's not, and test results.

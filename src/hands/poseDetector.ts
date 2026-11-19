@@ -225,7 +225,7 @@ export class HoldTimer {
   progress = 0;
   private armed = true;
 
-  constructor(private readonly seconds = POSE_CONFIG.holdSeconds) {}
+  constructor(public seconds = POSE_CONFIG.holdSeconds) {}
 
   update(dt: number, active: boolean): boolean {
     if (active && this.armed) {
@@ -335,5 +335,10 @@ export class PoseDetector {
 
   reset(): void {
     for (const p of POSES) this.timers[p].reset();
+  }
+
+  /** Battles use a quicker hold than the story (a weapon is needed fast). */
+  setHoldSeconds(s: number): void {
+    for (const p of POSES) this.timers[p].seconds = s;
   }
 }

@@ -351,7 +351,7 @@ const PICTOGRAMS: Record<PoseId, (ctx: Ctx) => void> = {
   },
 };
 
-function pictogramTexture(pose: PoseId): CanvasTexture {
+export function pictogramTexture(pose: PoseId): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const ctx = c.getContext('2d')!;
@@ -367,7 +367,7 @@ function pictogramTexture(pose: PoseId): CanvasTexture {
   return t;
 }
 
-const POSE_CAPTIONS: Record<PoseId, string[]> = {
+export const POSE_CAPTIONS: Record<PoseId, string[]> = {
   dog: ['Make a DOG', 'flat hand · thumb up · pinky down'],
   bird: ['Make a BIRD', 'hook your thumbs · spread your fingers'],
   rabbit: ['Make a RABBIT', 'two fingers up · curl the rest'],
@@ -473,8 +473,8 @@ export class PinchMenu<T extends string> {
     // Tilt to face the eyes (which are above and behind the menu).
     this.root.rotation.x = -0.45;
     const n = items.length;
-    // More than four buttons: two rows of three, so the menu stays within reach.
-    const cols = n > 4 ? 3 : n;
+    // More than four buttons: two rows (of three, or four for 7–8), so the menu stays within reach.
+    const cols = n > 6 ? 4 : n > 4 ? 3 : n;
     const size = n <= 2 ? 0.17 : n === 3 || n > 4 ? 0.12 : 0.115;
     const spacing = n <= 2 ? MENU.buttonOffsetX * 2 : size + 0.018;
     this.radius = Math.min(MENU.buttonRadius, spacing * 0.55);
@@ -486,13 +486,15 @@ export class PinchMenu<T extends string> {
     items.forEach((item, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
+      // A shorter last row is centred.
+      const inRow = Math.min(cols, n - row * cols);
       const normal = buttonTexture(item.label, false, accent);
       const hot = buttonTexture(item.label, true, accent);
       const mesh = new Mesh(
         new PlaneGeometry(size, size),
         new MeshBasicMaterial({ map: normal, transparent: true, toneMapped: false }),
       );
-      mesh.position.set((col - (cols - 1) / 2) * spacing, top - row * rowStep, 0);
+      mesh.position.set((col - (inRow - 1) / 2) * spacing, top - row * rowStep, 0);
       mesh.renderOrder = 10;
       this.root.add(mesh);
       this.buttons.push({ id: item.id, mesh, normal, hot, pos: new Vector3() });
@@ -588,12 +590,13 @@ export class PauseMenu extends PinchMenu<PauseChoice> {
   }
 }
 
-export type MainChoice = 'story' | 'duel' | 'memory' | 'gallery' | 'settings' | 'credits';
+export type MainChoice = 'story' | 'battle' | 'duel' | 'memory' | 'gallery' | 'settings' | 'credits';
 
 export class MainMenu extends PinchMenu<MainChoice> {
   constructor() {
     super('pinch to choose · or hold an open palm to begin', [
       { id: 'story', label: 'Story' },
+      { id: 'battle', label: 'Battle' },
       { id: 'duel', label: 'Duel' },
       { id: 'memory', label: 'Memory' },
       { id: 'gallery', label: 'Gallery' },

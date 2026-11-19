@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   CanvasTexture,
+  type Texture,
   Color,
   CylinderGeometry,
   Group,
@@ -120,11 +121,14 @@ export class Room {
   readonly light: SpotLight;
   /** Candle light position in room-local space (constant). */
   readonly lightPos = CANDLE_FLAME.clone();
+  /** The shadow wall itself (it sinks away for battles). */
+  wallMesh!: Mesh;
 
   private readonly flame: Mesh;
   private readonly flameCore: Mesh;
   private readonly glow: Sprite;
   private readonly ambient: HemisphereLight;
+  private defaultWallMap: Texture | null | undefined;
   private baseIntensity = 7;
   private ambientBase = 0.35;
   private brightness = 1;
@@ -142,6 +146,7 @@ export class Room {
     wall.position.set(0, 2.0, WALL_Z);
     wall.receiveShadow = true;
     this.root.add(wall);
+    this.wallMesh = wall;
 
     // --- Surrounding rough stone (floor, sides, ceiling) — one shared material.
     const roughTex = stoneTexture([92, 74, 60], false, 21);
@@ -256,8 +261,14 @@ export class Room {
   }
 
   /** Adopt a world's look: wall tint and ambient light (the shell is replaced by the world). */
-  setLook(look: { wallTint: number; hemiSky: number; hemiGround: number; hemiIntensity: number }): void {
+  setLook(look: { wallTint: number; hemiSky: number; hemiGround: number; hemiIntensity: number; wallMap?: Texture | null }): void {
     this.shell.visible = false;
+    this.defaultWallMap ??= this.wallMaterial.map;
+    const map = look.wallMap ?? this.defaultWallMap;
+    if (this.wallMaterial.map !== map) {
+      this.wallMaterial.map = map;
+      this.wallMaterial.needsUpdate = true;
+    }
     this.wallMaterial.color.set(look.wallTint);
     this.ambient.color.set(look.hemiSky);
     this.ambient.groundColor.set(look.hemiGround);
